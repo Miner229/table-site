@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Рейтинг участников</title>
+  <title>Таблицы участников</title>
   <style>
     body {
       font-family: "Segoe UI", Arial, sans-serif;
@@ -15,16 +15,22 @@
     h1 {
       text-align: center;
       color: #007bff;
+      margin-bottom: 30px;
+    }
+    .table-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      padding: 0 20px;
     }
     table {
-      width: 60%;
-      margin: 30px auto;
+      width: 100%;
       border-collapse: collapse;
       background: #fff;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     th, td {
-      padding: 12px 15px;
+      padding: 10px;
       border: 1px solid #ddd;
       text-align: center;
     }
@@ -35,47 +41,56 @@
     tr:nth-child(even) {
       background-color: #f2f2f2;
     }
+    .table-title {
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #444;
+    }
   </style>
 </head>
 <body>
   <h1>Рейтинг участников</h1>
-  <table id="score-table">
-    <thead>
-      <tr><th>ФИО</th><th>Баллы</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <div class="table-container" id="tables"></div>
 
   <script>
-    const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv";
+    // Одна ссылка на всю таблицу (не на лист)
+    const BASE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv&sheet=";
 
-    async function loadData() {
-      try {
-        const response = await fetch(SHEET_URL);
-        if (!response.ok) throw new Error("Ошибка загрузки данных");
-        const data = await response.text();
-        const rows = data.trim().split("\n").map(r => r.split(","));
-        
-        const tbody = document.querySelector("#score-table tbody");
-        tbody.innerHTML = "";
+    // Названия листов (вкладок) в Google Sheets
+    const SHEETS = ["table1", "table2", "table3", "table4", "table5", "table6"];
 
-        for (let i = 1; i < rows.length; i++) {
-          const fio = rows[i][0]?.trim() || "";
-          const score = rows[i][1]?.trim() || "";
-          if (!fio) continue;
-          const tr = document.createElement("tr");
-          tr.innerHTML = `<td>${fio}</td><td>${score}</td>`;
-          tbody.appendChild(tr);
+    async function loadSheet(sheetName) {
+      const url = BASE_URL + sheetName;
+      const response = await fetch(url);
+      const data = await response.text();
+      const rows = data.trim().split("\n").map(r => r.split(","));
+
+      let html = `<div><div class='table-title'>${sheetName.toUpperCase()}</div>`;
+      html += `<table><thead><tr><th>ФИО</th><th>Баллы</th></tr></thead><tbody>`;
+      for (let i = 1; i < rows.length; i++) {
+        if (!rows[i][0]) continue;
+        html += `<tr><td>${rows[i][0]}</td><td>${rows[i][1]}</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
+      return html;
+    }
+
+    async function renderAll() {
+      const container = document.getElementById("tables");
+      container.innerHTML = "";
+      for (let sheet of SHEETS) {
+        try {
+          const html = await loadSheet(sheet);
+          container.innerHTML += html;
+        } catch (err) {
+          container.innerHTML += `<div class='table-title'>${sheet}</div><p style="color:red;text-align:center;">Ошибка загрузки</p>`;
         }
-      } catch (err) {
-        console.error(err);
-        document.querySelector("#score-table tbody").innerHTML = 
-          `<tr><td colspan="2" style="color:red;">Ошибка загрузки данных</td></tr>`;
       }
     }
 
-    loadData();
-    setInterval(loadData, 20 * 60 * 1000);
+    renderAll();
+    setInterval(renderAll, 20 * 60 * 1000); // обновление каждые 20 минут
   </script>
 </body>
 </html>
