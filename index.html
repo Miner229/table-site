@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Таблицы участников</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      background: #f8f9fa; 
+      margin: 20px; 
+      color: #333; 
+    }
+    h2 { 
+      text-align: center; 
+      color: #444; 
+    }
+    .table-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h2>Таблицы участников</h2>
+  <div class="table-container" id="tables"></div>
+
+  <script>
+    const SHEET_ID = "YOUR_SHEET_ID";
+    const SHEET_NAMES = ["table1", "table2", "table3", "table4", "table5", "table6"];
+
+    async function loadSheet(sheetName) {
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${sheetName}`;
+      const response = await fetch(url);
+      const text = await response.text();
+      const json = JSON.parse(text.substr(47).slice(0, -2));
+      const rows = json.table.rows;
+      let html = `<table><thead><tr><th>ФИО</th><th>Баллы</th></tr></thead><tbody>`;
+      rows.forEach(row => {
+        const fio = row.c[0]?.v || "";
+        const score = row.c[1]?.v || "";
+        html += `<tr><td>${fio}</td><td>${score}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      return html;
+    }
+
+    async function renderTables() {
+      const container = document.getElementById("tables");
+      container.innerHTML = "";
+      for (let name of SHEET_NAMES) {
+        const tableHTML = await loadSheet(name);
+        container.innerHTML += tableHTML;
+      }
+    }
+
+    renderTables();
+    setInterval(renderTables, 20 * 60 * 1000); // обновлять каждые 20 минут
+  </script>
+</body>
+</html>
