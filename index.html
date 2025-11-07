@@ -5,101 +5,125 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Рейтинг потоков</title>
   <style>
-    body {
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: #f7f9fb;
+    html, body {
       margin: 0;
-      padding: 20px;
+      height: 100%;
+      background: #f7f9fb;
+      font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden; /* убираем скролл */
       color: #333;
     }
 
-    h1 {
-      text-align: center;
-      color: #007bff;
-      margin-bottom: 20px;
-    }
-
-    .buttons {
-      text-align: center;
-      margin-bottom: 25px;
-    }
-
-    .buttons button {
-      margin: 5px;
-      padding: 10px 20px;
-      border: 1px solid #007bff;
-      border-radius: 5px;
-      background: #fff;
-      color: #007bff;
-      cursor: pointer;
-      font-size: 15px;
-      transition: 0.2s;
-    }
-
-    .buttons button.active {
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 30px;
       background: #007bff;
-      color: #fff;
-      font-weight: bold;
+      color: white;
     }
 
-    .buttons button:hover {
-      background: #0056b3;
-      color: #fff;
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.5px;
     }
 
-    .table-container {
+    .stream-select {
+      font-size: 16px;
+      padding: 8px 15px;
+      border-radius: 6px;
+      border: none;
+      color: #007bff;
+      background: white;
+      cursor: pointer;
+      outline: none;
+      font-weight: 500;
+    }
+
+    .dashboard {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 25px;
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 0 20px;
+      grid-template-rows: repeat(2, 1fr);
+      gap: 10px;
+      height: calc(100% - 70px); /* остальное пространство под таблицы */
+      padding: 10px 20px;
+      box-sizing: border-box;
+    }
+
+    .table-box {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+      background: #fff;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .table-title {
+      background: #007bff;
+      color: #fff;
+      text-align: center;
+      padding: 6px;
+      font-size: 15px;
+      font-weight: 600;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      background: #fff;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      flex-grow: 1;
+      font-size: 14px;
     }
 
     th, td {
-      padding: 10px;
+      padding: 5px;
       border: 1px solid #ddd;
       text-align: center;
     }
 
     th {
-      background-color: #007bff;
-      color: #fff;
+      background: #e9ecef;
+      color: #333;
+      font-weight: 600;
     }
 
     tr:nth-child(even) {
-      background-color: #f2f2f2;
+      background-color: #f8f9fa;
     }
 
-    .table-title {
-      text-align: center;
-      font-weight: bold;
-      margin-bottom: 8px;
-      color: #444;
+    @media (max-width: 1000px) {
+      .dashboard {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 700px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(6, 1fr);
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Рейтинг участников</h1>
+  <header>
+    <h1>Рейтинг участников</h1>
+    <select id="streamSelect" class="stream-select">
+      <option value="1">Поток 1</option>
+      <option value="2">Поток 2</option>
+      <option value="3">Поток 3</option>
+      <option value="4">Поток 4</option>
+      <option value="5">Поток 5</option>
+      <option value="6">Поток 6</option>
+      <option value="7">Поток 7</option>
+    </select>
+  </header>
 
-  <div class="buttons" id="streamButtons">
-    <button data-stream="1" class="active">Поток 1</button>
-    <button data-stream="2">Поток 2</button>
-    <button data-stream="3">Поток 3</button>
-    <button data-stream="4">Поток 4</button>
-    <button data-stream="5">Поток 5</button>
-    <button data-stream="6">Поток 6</button>
-    <button data-stream="7">Поток 7</button>
-  </div>
-
-  <div class="table-container" id="tables"></div>
+  <div class="dashboard" id="tables"></div>
 
   <script>
     // ссылки на Google Sheets для каждого потока
@@ -115,14 +139,14 @@
 
     const TABLES_PER_STREAM = 6;
     const container = document.getElementById("tables");
-    const buttons = document.querySelectorAll("#streamButtons button");
+    const streamSelect = document.getElementById("streamSelect");
 
     async function loadSheet(sheetUrl, sheetName) {
       const url = sheetUrl + sheetName;
       const response = await fetch(url);
       const data = await response.text();
       const rows = data.trim().split("\n").map(r => r.split(","));
-      let html = `<div><div class='table-title'>${sheetName.toUpperCase()}</div>`;
+      let html = `<div class='table-box'><div class='table-title'>${sheetName.toUpperCase()}</div>`;
       html += `<table><thead><tr><th>ФИО</th><th>Баллы</th></tr></thead><tbody>`;
       for (let i = 1; i < rows.length; i++) {
         if (!rows[i][0]) continue;
@@ -145,30 +169,23 @@
         try {
           const html = await loadSheet(baseUrl, sheetName);
           container.innerHTML += html;
-        } catch (err) {
-          container.innerHTML += `<div class='table-title'>${sheetName}</div><p style="color:red;text-align:center;">Ошибка загрузки</p>`;
+        } catch {
+          container.innerHTML += `<div class='table-box'><div class='table-title'>${sheetName}</div><p style="color:red;text-align:center;">Ошибка загрузки</p></div>`;
         }
       }
     }
 
-    buttons.forEach(button => {
-      button.addEventListener("click", () => {
-        buttons.forEach(btn => btn.classList.remove("active"));
-        button.classList.add("active");
-        const stream = button.getAttribute("data-stream");
-        localStorage.setItem("lastStream", stream);
-        renderStream(stream);
-      });
+    streamSelect.addEventListener("change", () => {
+      const stream = streamSelect.value;
+      renderStream(stream);
+      localStorage.setItem("lastStream", stream);
     });
 
     const last = localStorage.getItem("lastStream") || "1";
-    document.querySelector(`#streamButtons button[data-stream="${last}"]`).classList.add("active");
+    streamSelect.value = last;
     renderStream(last);
 
-    setInterval(() => {
-      const active = document.querySelector("#streamButtons button.active").getAttribute("data-stream");
-      renderStream(active);
-    }, 20 * 60 * 1000); // обновление каждые 20 минут
+    setInterval(() => renderStream(streamSelect.value), 20 * 60 * 1000);
   </script>
 </body>
 </html>
