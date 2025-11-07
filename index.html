@@ -18,13 +18,26 @@
       margin-bottom: 30px;
     }
     .table-container {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr); /* три колонки */
-  gap: 25px;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
+      display: grid;
+      grid-template-columns: repeat(3, 1fr); /* ровно три в ряд */
+      gap: 25px;
+      max-width: 1400px; /* ограничиваем ширину */
+      margin: 0 auto; /* выравниваем по центру */
+      padding: 0 20px;
+    }
+
+    @media (max-width: 1200px) {
+      .table-container {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 800px) {
+      .table-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
 
     table {
       width: 100%;
