@@ -50,25 +50,32 @@
     const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv";
 
     async function loadData() {
-      const response = await fetch(SHEET_URL);
-      const data = await response.text();
-      const rows = data.split("\n").map(r => r.split(","));
-      
-      const tbody = document.querySelector("#score-table tbody");
-      tbody.innerHTML = "";
+      try {
+        const response = await fetch(SHEET_URL);
+        if (!response.ok) throw new Error("Ошибка загрузки данных");
+        const data = await response.text();
+        const rows = data.trim().split("\n").map(r => r.split(","));
+        
+        const tbody = document.querySelector("#score-table tbody");
+        tbody.innerHTML = "";
 
-      for (let i = 1; i < rows.length; i++) {
-        if (!rows[i][0]) continue;
-        const fio = rows[i][0];
-        const score = rows[i][1];
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${fio}</td><td>${score}</td>`;
-        tbody.appendChild(tr);
+        for (let i = 1; i < rows.length; i++) {
+          const fio = rows[i][0]?.trim() || "";
+          const score = rows[i][1]?.trim() || "";
+          if (!fio) continue;
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${fio}</td><td>${score}</td>`;
+          tbody.appendChild(tr);
+        }
+      } catch (err) {
+        console.error(err);
+        document.querySelector("#score-table tbody").innerHTML = 
+          `<tr><td colspan="2" style="color:red;">Ошибка загрузки данных</td></tr>`;
       }
     }
 
     loadData();
-    setInterval(loadData, 20 * 60 * 1000); // обновлять каждые 20 минут
+    setInterval(loadData, 20 * 60 * 1000);
   </script>
 </body>
 </html>
