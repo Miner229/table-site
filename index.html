@@ -12,25 +12,41 @@
       padding: 20px;
       color: #333;
     }
+
     h1 {
       text-align: center;
       color: #007bff;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
     }
-    .selector {
+
+    .buttons {
       text-align: center;
       margin-bottom: 25px;
     }
-    select {
-      font-size: 16px;
-      padding: 8px 15px;
-      border-radius: 6px;
+
+    .buttons button {
+      margin: 5px;
+      padding: 10px 20px;
       border: 1px solid #007bff;
-      color: #007bff;
+      border-radius: 5px;
       background: #fff;
+      color: #007bff;
       cursor: pointer;
-      outline: none;
+      font-size: 15px;
+      transition: 0.2s;
     }
+
+    .buttons button.active {
+      background: #007bff;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .buttons button:hover {
+      background: #0056b3;
+      color: #fff;
+    }
+
     .table-container {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -39,24 +55,29 @@
       margin: 0 auto;
       padding: 0 20px;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
       background: #fff;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
+
     th, td {
       padding: 10px;
       border: 1px solid #ddd;
       text-align: center;
     }
+
     th {
       background-color: #007bff;
       color: #fff;
     }
+
     tr:nth-child(even) {
       background-color: #f2f2f2;
     }
+
     .table-title {
       text-align: center;
       font-weight: bold;
@@ -68,23 +89,20 @@
 <body>
   <h1>Рейтинг участников</h1>
 
-  <div class="selector">
-    <label for="streamSelect">Выбери поток:</label>
-    <select id="streamSelect">
-      <option value="1">Поток 1</option>
-      <option value="2">Поток 2</option>
-      <option value="3">Поток 3</option>
-      <option value="4">Поток 4</option>
-      <option value="5">Поток 5</option>
-      <option value="6">Поток 6</option>
-      <option value="7">Поток 7</option>
-    </select>
+  <div class="buttons" id="streamButtons">
+    <button data-stream="1" class="active">Поток 1</button>
+    <button data-stream="2">Поток 2</button>
+    <button data-stream="3">Поток 3</button>
+    <button data-stream="4">Поток 4</button>
+    <button data-stream="5">Поток 5</button>
+    <button data-stream="6">Поток 6</button>
+    <button data-stream="7">Поток 7</button>
   </div>
 
   <div class="table-container" id="tables"></div>
 
   <script>
-    // ссылки на опубликованные Google Sheets (каждая — свой поток)
+    // ссылки на Google Sheets для каждого потока
     const STREAM_URLS = {
       1: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv&sheet=",
       2: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК2/pub?output=csv&sheet=",
@@ -97,7 +115,7 @@
 
     const TABLES_PER_STREAM = 6;
     const container = document.getElementById("tables");
-    const streamSelect = document.getElementById("streamSelect");
+    const buttons = document.querySelectorAll("#streamButtons button");
 
     async function loadSheet(sheetUrl, sheetName) {
       const url = sheetUrl + sheetName;
@@ -133,17 +151,24 @@
       }
     }
 
-    streamSelect.addEventListener("change", () => {
-      const stream = streamSelect.value;
-      renderStream(stream);
-      localStorage.setItem("lastStream", stream);
+    buttons.forEach(button => {
+      button.addEventListener("click", () => {
+        buttons.forEach(btn => btn.classList.remove("active"));
+        button.classList.add("active");
+        const stream = button.getAttribute("data-stream");
+        localStorage.setItem("lastStream", stream);
+        renderStream(stream);
+      });
     });
 
     const last = localStorage.getItem("lastStream") || "1";
-    streamSelect.value = last;
+    document.querySelector(`#streamButtons button[data-stream="${last}"]`).classList.add("active");
     renderStream(last);
 
-    setInterval(() => renderStream(streamSelect.value), 20 * 60 * 1000);
+    setInterval(() => {
+      const active = document.querySelector("#streamButtons button.active").getAttribute("data-stream");
+      renderStream(active);
+    }, 20 * 60 * 1000); // обновление каждые 20 минут
   </script>
 </body>
 </html>
