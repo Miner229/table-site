@@ -1,118 +1,55 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Рейтинг потоков</title>
-  <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-      background: #f7f9fb;
-      font-family: "Segoe UI", Arial, sans-serif;
-      overflow: hidden; /* убираем скролл */
-      color: #333;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Рейтинг потоков</title>
+<style>
+  html,body{
+    margin:0;height:100%;overflow:hidden;
+    background:#f7f9fb;font-family:"Segoe UI",Arial,sans-serif;color:#333;
+  }
+  header{
+    position:fixed;top:0;left:0;right:0;height:60px;
+    background:#007bff;color:#fff;display:flex;align-items:center;
+    justify-content:space-between;padding:0 25px;z-index:10;
+  }
+  header h1{margin:0;font-size:20px;}
+  .stream-select{
+    font-size:15px;padding:6px 10px;border:none;border-radius:5px;
+    color:#007bff;background:#fff;cursor:pointer;font-weight:500;
+  }
 
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 15px 30px;
-      background: #007bff;
-      color: white;
-    }
+  main{
+    position:absolute;top:60px;bottom:0;left:0;right:0;
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    grid-template-rows:repeat(2,1fr);
+    gap:8px;padding:8px;box-sizing:border-box;
+  }
 
-    header h1 {
-      margin: 0;
-      font-size: 22px;
-      letter-spacing: 0.5px;
-    }
-
-    .stream-select {
-      font-size: 16px;
-      padding: 8px 15px;
-      border-radius: 6px;
-      border: none;
-      color: #007bff;
-      background: white;
-      cursor: pointer;
-      outline: none;
-      font-weight: 500;
-    }
-
-    .dashboard {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(2, 1fr);
-      gap: 10px;
-      height: calc(100% - 70px); /* остальное пространство под таблицы */
-      padding: 10px 20px;
-      box-sizing: border-box;
-    }
-
-    .table-box {
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-      align-items: stretch;
-      background: #fff;
-      box-shadow: 0 0 8px rgba(0,0,0,0.1);
-      border-radius: 5px;
-      overflow: hidden;
-    }
-
-    .table-title {
-      background: #007bff;
-      color: #fff;
-      text-align: center;
-      padding: 6px;
-      font-size: 15px;
-      font-weight: 600;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      flex-grow: 1;
-      font-size: 14px;
-    }
-
-    th, td {
-      padding: 5px;
-      border: 1px solid #ddd;
-      text-align: center;
-    }
-
-    th {
-      background: #e9ecef;
-      color: #333;
-      font-weight: 600;
-    }
-
-    tr:nth-child(even) {
-      background-color: #f8f9fa;
-    }
-
-    @media (max-width: 1000px) {
-      .dashboard {
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(3, 1fr);
-      }
-    }
-
-    @media (max-width: 700px) {
-      .dashboard {
-        grid-template-columns: 1fr;
-        grid-template-rows: repeat(6, 1fr);
-      }
-    }
-  </style>
+  .table-box{
+    background:#fff;border-radius:5px;box-shadow:0 0 6px rgba(0,0,0,0.1);
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  .table-title{
+    background:#007bff;color:#fff;text-align:center;padding:4px;
+    font-size:14px;font-weight:600;flex-shrink:0;
+  }
+  table{
+    width:100%;border-collapse:collapse;flex-grow:1;
+    font-size:13px;table-layout:fixed;
+  }
+  th,td{border:1px solid #ddd;padding:3px;text-align:center;word-wrap:break-word;}
+  th{background:#e9ecef;}
+  tr:nth-child(even){background:#f8f9fa;}
+</style>
 </head>
 <body>
   <header>
     <h1>Рейтинг участников</h1>
     <select id="streamSelect" class="stream-select">
+      <option value="" disabled selected>Выберите поток</option>
       <option value="1">Поток 1</option>
       <option value="2">Поток 2</option>
       <option value="3">Поток 3</option>
@@ -123,69 +60,75 @@
     </select>
   </header>
 
-  <div class="dashboard" id="tables"></div>
+  <main id="tables"></main>
 
-  <script>
-    // ссылки на Google Sheets для каждого потока
-    const STREAM_URLS = {
-      1: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv&sheet=",
-      2: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК2/pub?output=csv&sheet=",
-      3: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК3/pub?output=csv&sheet=",
-      4: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК4/pub?output=csv&sheet=",
-      5: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК5/pub?output=csv&sheet=",
-      6: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК6/pub?output=csv&sheet=",
-      7: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК7/pub?output=csv&sheet="
-    };
+<script>
+const STREAM_URLS={
+  1:"https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv&sheet=",
+  2:"https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК2/pub?output=csv&sheet=",
+  3:"https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК3/pub?output=csv&sheet=",
+  4:"https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК4/pub?output=csv&sheet=",
+  5:"https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК5/pub?output=csv&sheet=",
+  6:"https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК6/pub?output=csv&sheet=",
+  7:"https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК7/pub?output=csv&sheet="
+};
+const TABLES_PER_STREAM=6;
+const container=document.getElementById("tables");
+const select=document.getElementById("streamSelect");
+let currentStream=null;
 
-    const TABLES_PER_STREAM = 6;
-    const container = document.getElementById("tables");
-    const streamSelect = document.getElementById("streamSelect");
+// загрузка одного листа
+async function loadSheet(baseUrl,sheetName){
+  const url=baseUrl+sheetName;
+  const response=await fetch(url);
+  const data=await response.text();
+  const rows=data.trim().split("\n").map(r=>r.split(","));
+  let html=`<div class="table-box"><div class="table-title">${sheetName.toUpperCase()}</div>`;
+  html+=`<table><thead><tr><th>ФИО</th><th>Баллы</th></tr></thead><tbody>`;
+  for(let i=1;i<rows.length;i++){
+    if(!rows[i][0]) continue;
+    html+=`<tr><td>${rows[i][0]}</td><td>${rows[i][1]}</td></tr>`;
+  }
+  html+=`</tbody></table></div>`;
+  return html;
+}
 
-    async function loadSheet(sheetUrl, sheetName) {
-      const url = sheetUrl + sheetName;
-      const response = await fetch(url);
-      const data = await response.text();
-      const rows = data.trim().split("\n").map(r => r.split(","));
-      let html = `<div class='table-box'><div class='table-title'>${sheetName.toUpperCase()}</div>`;
-      html += `<table><thead><tr><th>ФИО</th><th>Баллы</th></tr></thead><tbody>`;
-      for (let i = 1; i < rows.length; i++) {
-        if (!rows[i][0]) continue;
-        html += `<tr><td>${rows[i][0]}</td><td>${rows[i][1]}</td></tr>`;
-      }
-      html += `</tbody></table></div>`;
-      return html;
+// строгая загрузка по порядку 1..6
+async function renderStream(stream){
+  currentStream=stream;
+  container.innerHTML="";
+  const baseUrl=STREAM_URLS[stream];
+  if(!baseUrl){container.innerHTML="<p style='color:red;text-align:center;'>Нет ссылки для этого потока</p>";return;}
+
+  for(let i=1;i<=TABLES_PER_STREAM;i++){
+    try{
+      const html=await loadSheet(baseUrl,`table${i}`);
+      // Проверяем, что пользователь не переключил поток во время загрузки
+      if(stream!==currentStream) return;
+      container.insertAdjacentHTML("beforeend",html);
+    }catch{
+      container.insertAdjacentHTML("beforeend",
+        `<div class="table-box"><div class="table-title">table${i}</div><p style='color:red;text-align:center;'>Ошибка загрузки</p></div>`);
     }
+  }
+}
 
-    async function renderStream(stream) {
-      container.innerHTML = "";
-      const baseUrl = STREAM_URLS[stream];
-      if (!baseUrl) {
-        container.innerHTML = `<p style="text-align:center;color:red;">Поток ${stream} не найден</p>`;
-        return;
-      }
+select.addEventListener("change",()=>{
+  const stream=select.value;
+  localStorage.setItem("lastStream",stream);
+  renderStream(stream);
+});
 
-      for (let i = 1; i <= TABLES_PER_STREAM; i++) {
-        const sheetName = `table${i}`;
-        try {
-          const html = await loadSheet(baseUrl, sheetName);
-          container.innerHTML += html;
-        } catch {
-          container.innerHTML += `<div class='table-box'><div class='table-title'>${sheetName}</div><p style="color:red;text-align:center;">Ошибка загрузки</p></div>`;
-        }
-      }
-    }
+// восстанавливаем последний выбранный поток
+const last=localStorage.getItem("lastStream");
+if(last){
+  select.value=last;
+  renderStream(last);
+}
 
-    streamSelect.addEventListener("change", () => {
-      const stream = streamSelect.value;
-      renderStream(stream);
-      localStorage.setItem("lastStream", stream);
-    });
-
-    const last = localStorage.getItem("lastStream") || "1";
-    streamSelect.value = last;
-    renderStream(last);
-
-    setInterval(() => renderStream(streamSelect.value), 20 * 60 * 1000);
-  </script>
+setInterval(()=>{
+  if(currentStream) renderStream(currentStream);
+},20*60*1000);
+</script>
 </body>
 </html>
