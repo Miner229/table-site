@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Таблицы участников</title>
+  <title>Рейтинг потоков</title>
   <style>
     body {
       font-family: "Segoe UI", Arial, sans-serif;
@@ -15,30 +15,30 @@
     h1 {
       text-align: center;
       color: #007bff;
-      margin-bottom: 30px;
+      margin-bottom: 15px;
+    }
+    .selector {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+    select {
+      font-size: 16px;
+      padding: 8px 15px;
+      border-radius: 6px;
+      border: 1px solid #007bff;
+      color: #007bff;
+      background: #fff;
+      cursor: pointer;
+      outline: none;
     }
     .table-container {
       display: grid;
-      grid-template-columns: repeat(3, 1fr); /* ровно три в ряд */
+      grid-template-columns: repeat(3, 1fr);
       gap: 25px;
-      max-width: 1400px; /* ограничиваем ширину */
-      margin: 0 auto; /* выравниваем по центру */
+      max-width: 1400px;
+      margin: 0 auto;
       padding: 0 20px;
     }
-
-    @media (max-width: 1200px) {
-      .table-container {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    @media (max-width: 800px) {
-      .table-container {
-        grid-template-columns: 1fr;
-      }
-    }
-
-
     table {
       width: 100%;
       border-collapse: collapse;
@@ -67,21 +67,43 @@
 </head>
 <body>
   <h1>Рейтинг участников</h1>
+
+  <div class="selector">
+    <label for="streamSelect">Выбери поток:</label>
+    <select id="streamSelect">
+      <option value="1">Поток 1</option>
+      <option value="2">Поток 2</option>
+      <option value="3">Поток 3</option>
+      <option value="4">Поток 4</option>
+      <option value="5">Поток 5</option>
+      <option value="6">Поток 6</option>
+      <option value="7">Поток 7</option>
+    </select>
+  </div>
+
   <div class="table-container" id="tables"></div>
 
   <script>
-    // Одна ссылка на всю таблицу (не на лист)
-    const BASE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv&sheet=";
+    // ссылки на опубликованные Google Sheets (каждая — свой поток)
+    const STREAM_URLS = {
+      1: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv&sheet=",
+      2: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК2/pub?output=csv&sheet=",
+      3: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК3/pub?output=csv&sheet=",
+      4: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК4/pub?output=csv&sheet=",
+      5: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК5/pub?output=csv&sheet=",
+      6: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК6/pub?output=csv&sheet=",
+      7: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК7/pub?output=csv&sheet="
+    };
 
-    // Названия листов (вкладок) в Google Sheets
-    const SHEETS = ["table1", "table2", "table3", "table4", "table5", "table6"];
+    const TABLES_PER_STREAM = 6;
+    const container = document.getElementById("tables");
+    const streamSelect = document.getElementById("streamSelect");
 
-    async function loadSheet(sheetName) {
-      const url = BASE_URL + sheetName;
+    async function loadSheet(sheetUrl, sheetName) {
+      const url = sheetUrl + sheetName;
       const response = await fetch(url);
       const data = await response.text();
       const rows = data.trim().split("\n").map(r => r.split(","));
-
       let html = `<div><div class='table-title'>${sheetName.toUpperCase()}</div>`;
       html += `<table><thead><tr><th>ФИО</th><th>Баллы</th></tr></thead><tbody>`;
       for (let i = 1; i < rows.length; i++) {
@@ -92,21 +114,36 @@
       return html;
     }
 
-    async function renderAll() {
-      const container = document.getElementById("tables");
+    async function renderStream(stream) {
       container.innerHTML = "";
-      for (let sheet of SHEETS) {
+      const baseUrl = STREAM_URLS[stream];
+      if (!baseUrl) {
+        container.innerHTML = `<p style="text-align:center;color:red;">Поток ${stream} не найден</p>`;
+        return;
+      }
+
+      for (let i = 1; i <= TABLES_PER_STREAM; i++) {
+        const sheetName = `table${i}`;
         try {
-          const html = await loadSheet(sheet);
+          const html = await loadSheet(baseUrl, sheetName);
           container.innerHTML += html;
         } catch (err) {
-          container.innerHTML += `<div class='table-title'>${sheet}</div><p style="color:red;text-align:center;">Ошибка загрузки</p>`;
+          container.innerHTML += `<div class='table-title'>${sheetName}</div><p style="color:red;text-align:center;">Ошибка загрузки</p>`;
         }
       }
     }
 
-    renderAll();
-    setInterval(renderAll, 20 * 60 * 1000); // обновление каждые 20 минут
+    streamSelect.addEventListener("change", () => {
+      const stream = streamSelect.value;
+      renderStream(stream);
+      localStorage.setItem("lastStream", stream);
+    });
+
+    const last = localStorage.getItem("lastStream") || "1";
+    streamSelect.value = last;
+    renderStream(last);
+
+    setInterval(() => renderStream(streamSelect.value), 20 * 60 * 1000);
   </script>
 </body>
 </html>
