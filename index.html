@@ -8,7 +8,7 @@
   html, body {
     margin: 0;
     height: 100%;
-    overflow: hidden;
+    overflow-x: hidden;
     background: #f7f9fb;
     font-family: "Segoe UI", Arial, sans-serif;
     color: #333;
@@ -47,16 +47,15 @@
     position: absolute;
     top: 60px; bottom: 0; left: 0; right: 0;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(2, 1fr);
-    gap: 8px;
-    padding: 8px;
+    gap: 10px;
+    padding: 10px;
     box-sizing: border-box;
+    transition: grid-template-columns 0.3s;
   }
 
   .table-box {
     background: #fff;
-    border-radius: 5px;
+    border-radius: 6px;
     box-shadow: 0 0 6px rgba(0,0,0,0.1);
     display: flex;
     flex-direction: column;
@@ -67,8 +66,8 @@
     background: #007bff;
     color: #fff;
     text-align: center;
-    padding: 4px;
-    font-size: 14px;
+    padding: 6px;
+    font-size: 15px;
     font-weight: 600;
     flex-shrink: 0;
   }
@@ -85,7 +84,7 @@
     border: 1px solid #ddd;
     text-align: center;
     word-wrap: break-word;
-    padding: 3px;
+    padding: 4px;
   }
 
   th {
@@ -97,24 +96,20 @@
     background-color: #f8f9fa;
   }
 
-  /* 🧩 Адаптация под разный экран */
-  @media (max-height: 800px) {
+  /* 🔹 адаптив под разные экраны */
+  @media (max-width: 900px) {
+    main {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+  }
+
+  @media (max-width: 600px) {
+    main {
+      grid-template-columns: 1fr !important;
+    }
+    .table-title { font-size: 14px; }
     table { font-size: 12px; }
-    th, td { padding: 2px; }
-  }
-
-  @media (max-width: 1000px) {
-    main {
-      grid-template-columns: repeat(2, 1fr);
-      grid-template-rows: repeat(3, 1fr);
-    }
-  }
-
-  @media (max-width: 700px) {
-    main {
-      grid-template-columns: 1fr;
-      grid-template-rows: repeat(6, 1fr);
-    }
+    th, td { padding: 3px; }
   }
 </style>
 </head>
@@ -136,72 +131,64 @@
   <main id="tables"></main>
 
   <script>
-    const STREAM_URLS = {
-      1: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG-ocGlYtU5yccH2ly3d3Vi4iVCVClBeT2_ER_dCHE1Xe0VdpK5KBa7ZaTRk8tFsTTwZcP7-7trIKK/pub?output=csv&sheet=",
-      2: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК2/pub?output=csv&sheet=",
-      3: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК3/pub?output=csv&sheet=",
-      4: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК4/pub?output=csv&sheet=",
-      5: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК5/pub?output=csv&sheet=",
-      6: "https://docs.google.com/spreadsheets/d/1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w/edit?usp=sharing",
-      7: "https://docs.google.com/spreadsheets/d/e/ВАША_ССЫЛКА_ПОТОК7/pub?output=csv&sheet="
+    // 🧩 Конфигурация потоков: ID таблицы, имя листа, диапазоны
+    const STREAM_CONFIG = {
+      1: { id: "ID_ПОТОК1", name: "Поток 1", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
+      2: { id: "ID_ПОТОК2", name: "Поток 2", ranges: ["A1:B6","A8:B13","A15:B20","A22:B27"] },
+      3: { id: "ID_ПОТОК3", name: "Поток 3", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
+      4: { id: "ID_ПОТОК4", name: "Поток 4", ranges: ["A1:B6","A8:B13","A15:B20","A22:B27"] },
+      5: { id: "ID_ПОТОК5", name: "Поток 5", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
+      6: { id: "ID_ПОТОК6", name: "Поток 6", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
+      7: { id: "ID_ПОТОК7", name: "Поток 7", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23"] }
     };
 
-    const TABLES_PER_STREAM = 6;
     const container = document.getElementById("tables");
     const select = document.getElementById("streamSelect");
-    let currentStream = null;
 
-    async function loadSheet(baseUrl, sheetName) {
-      const url = baseUrl + sheetName;
+    async function loadTable(baseId, sheetName, range, title) {
+      const url = `https://docs.google.com/spreadsheets/d/${baseId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&range=${range}`;
       const response = await fetch(url);
-      const data = await response.text();
-      const rows = data.trim().split("\n").map(r => r.split(","));
-      let html = `<div class="table-box"><div class="table-title">${sheetName.toUpperCase()}</div>`;
-      html += `<table><thead><tr><th>ФИО</th><th>Баллы</th></tr></thead><tbody>`;
+      const text = await response.text();
+      const rows = text.trim().split("\n").map(r => r.split(","));
+      let html = `<div class="table-box"><div class="table-title">${title}</div><table><thead><tr>`;
+      rows[0].forEach(cell => html += `<th>${cell}</th>`);
+      html += `</tr></thead><tbody>`;
       for (let i = 1; i < rows.length; i++) {
         if (!rows[i][0]) continue;
-        html += `<tr><td>${rows[i][0]}</td><td>${rows[i][1]}</td></tr>`;
+        html += `<tr>${rows[i].map(c => `<td>${c}</td>`).join("")}</tr>`;
       }
       html += `</tbody></table></div>`;
       return html;
     }
 
     async function renderStream(stream) {
-      currentStream = stream;
-      container.innerHTML = "";
-      const baseUrl = STREAM_URLS[stream];
-      if (!baseUrl) {
-        container.innerHTML = "<p style='color:red;text-align:center;'>Нет ссылки для этого потока</p>";
+      container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
+
+      const cfg = STREAM_CONFIG[stream];
+      if (!cfg) {
+        container.innerHTML = "<p style='color:red;text-align:center;'>Нет данных для этого потока</p>";
         return;
       }
 
-      for (let i = 1; i <= TABLES_PER_STREAM; i++) {
+      // 🔸 Количество колонок
+      const count = cfg.ranges.length;
+      if (count <= 4) container.style.gridTemplateColumns = "repeat(2, 1fr)";
+      else container.style.gridTemplateColumns = "repeat(3, 1fr)";
+
+      container.innerHTML = "";
+
+      for (let i = 0; i < cfg.ranges.length; i++) {
         try {
-          const html = await loadSheet(baseUrl, `table${i}`);
-          if (stream !== currentStream) return;
+          const html = await loadTable(cfg.id, cfg.name, cfg.ranges[i], `Таблица ${i + 1}`);
           container.insertAdjacentHTML("beforeend", html);
         } catch {
           container.insertAdjacentHTML("beforeend",
-            `<div class="table-box"><div class="table-title">table${i}</div><p style='color:red;text-align:center;'>Ошибка загрузки</p></div>`);
+            `<div class="table-box"><div class="table-title">Таблица ${i + 1}</div><p style='color:red;text-align:center;'>Ошибка загрузки</p></div>`);
         }
       }
     }
 
-    select.addEventListener("change", () => {
-      const stream = select.value;
-      localStorage.setItem("lastStream", stream);
-      renderStream(stream);
-    });
-
-    const last = localStorage.getItem("lastStream");
-    if (last) {
-      select.value = last;
-      renderStream(last);
-    }
-
-    setInterval(() => {
-      if (currentStream) renderStream(currentStream);
-    }, 20 * 60 * 1000);
+    select.addEventListener("change", () => renderStream(select.value));
   </script>
 </body>
 </html>
