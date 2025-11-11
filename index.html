@@ -17,41 +17,41 @@
   header {
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: 80px; /* увеличил высоту */
-    background: #007bff;
+    height: 100px; /* 🔹 выше шапка */
+    background: #0069d9; /* 🔹 насыщенно-синий */
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 30px;
+    padding: 0 40px;
     z-index: 10;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25);
   }
 
-  .logo-box {
+  .header-title {
     display: flex;
     align-items: center;
-    gap: 12px;
-  }
-
-  .logo-box img {
-    height: 55px;
-    width: auto;
-    border-radius: 6px;
-    background: white;
-    padding: 3px;
+    gap: 15px;
   }
 
   header h1 {
     margin: 0;
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 26px;
+    font-weight: 800;
     letter-spacing: 0.5px;
   }
 
+  .header-title img {
+    height: 65px; /* 🔹 немного больше */
+    width: auto;
+    border-radius: 6px;
+    background: white;
+    padding: 4px;
+  }
+
   .stream-select {
-    font-size: 15px;
-    padding: 7px 12px;
+    font-size: 16px;
+    padding: 8px 14px;
     border: none;
     border-radius: 6px;
     color: #007bff;
@@ -62,10 +62,10 @@
 
   main {
     position: absolute;
-    top: 80px; bottom: 0; left: 0; right: 0;
+    top: 100px; bottom: 0; left: 0; right: 0;
     display: grid;
     gap: 10px;
-    padding: 10px;
+    padding: 12px;
     box-sizing: border-box;
     grid-template-columns: repeat(3, 1fr);
     transition: grid-template-columns 0.3s;
@@ -108,9 +108,7 @@
     font-weight: 700;
   }
 
-  tr:nth-child(even) {
-    background: #f9fbfd;
-  }
+  tr:nth-child(even) { background: #f9fbfd; }
 
   @media (max-width: 900px) {
     main { grid-template-columns: repeat(2, 1fr) !important; }
@@ -126,9 +124,12 @@
 </head>
 <body>
   <header>
-    <div class="logo-box">
-      <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg" alt="Логотип">
+    <div class="header-title">
       <h1>Рейтинг участников</h1>
+      <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
+           alt="Логотип"
+           onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
+      <!-- onerror — подгружает с GitHub Pages, если raw не доступен -->
     </div>
 
     <select id="streamSelect" class="stream-select">
@@ -147,7 +148,6 @@
 
   <script>
     const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
-
     const STREAMS = {
       1: { gid: 0, ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
       2: { gid: 0, ranges: ["D1:F8","D10:F17","D19:F26","D28:F35"] },
@@ -164,17 +164,15 @@
     let allTablesHTML = [];
     let pageIndex = 0;
     let intervalId = null;
-    const PAGE_SIZE = 3;        // показывать по 3 таблицы
-    const ROTATE_MS = 20000;    // каждые 20 секунд
+    const PAGE_SIZE = 3;
+    const ROTATE_MS = 20000;
 
     async function loadTable({gid, range, title}) {
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}&range=${range}`;
       const res = await fetch(url);
       const text = await res.text();
       const rows = text.trim().split("\n").map(r => r.split(","));
-      if (!rows.length) {
-        return `<div class="table-box"><div class="table-title">${title}</div><p style="text-align:center;color:#c00;margin:10px 0;">Пусто</p></div>`;
-      }
+      if (!rows.length) return `<div class="table-box"><div class="table-title">${title}</div><p style="text-align:center;color:#c00;margin:10px 0;">Пусто</p></div>`;
       let html = `<div class="table-box"><div class="table-title">${title}</div><table><thead><tr>`;
       rows[0].forEach(c => html += `<th>${c}</th>`);
       html += `</tr></thead><tbody>`;
@@ -191,10 +189,7 @@
       container.innerHTML = "";
       const start = pageIndex * PAGE_SIZE;
       const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
-      if (!slice.length) {
-        pageIndex = 0;
-        return renderPage();
-      }
+      if (!slice.length) { pageIndex = 0; return renderPage(); }
       container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 3)}, 1fr)`;
       slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
       pageIndex++;
@@ -206,10 +201,7 @@
       container.innerHTML = `<p style="text-align:center;color:#555;">Загрузка...</p>`;
       if (intervalId) { clearInterval(intervalId); intervalId = null; }
       const cfg = STREAMS[key];
-      if (!cfg) {
-        container.innerHTML = `<p style="color:#c00;text-align:center;">Нет данных для этого потока</p>`;
-        return;
-      }
+      if (!cfg) { container.innerHTML = `<p style="color:#c00;text-align:center;">Нет данных для этого потока</p>`; return; }
       allTablesHTML = [];
       for (let i = 0; i < cfg.ranges.length; i++) {
         try {
