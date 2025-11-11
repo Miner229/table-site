@@ -27,89 +27,43 @@
     z-index: 10;
   }
 
-  header h1 {
-    margin: 0;
-    font-size: 20px;
-  }
-
+  header h1 { margin: 0; font-size: 18px; }
   .stream-select {
-    font-size: 15px;
-    padding: 6px 10px;
-    border: none;
-    border-radius: 5px;
-    color: #007bff;
-    background: #fff;
-    cursor: pointer;
-    font-weight: 500;
+    font-size: 15px; padding: 6px 10px; border: none; border-radius: 6px;
+    color: #007bff; background: #fff; cursor: pointer; font-weight: 600;
   }
 
   main {
-    position: absolute;
-    top: 60px; bottom: 0; left: 0; right: 0;
-    display: grid;
-    gap: 10px;
-    padding: 10px;
-    box-sizing: border-box;
-    transition: grid-template-columns 0.3s;
+    position: absolute; top: 60px; bottom: 0; left: 0; right: 0;
+    display: grid; gap: 10px; padding: 10px; box-sizing: border-box;
+    grid-template-columns: repeat(3, 1fr);
+    transition: grid-template-columns .3s;
   }
 
   .table-box {
-    background: #fff;
-    border-radius: 6px;
-    box-shadow: 0 0 6px rgba(0,0,0,0.1);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    background: #fff; border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    display: flex; flex-direction: column; overflow: hidden;
   }
-
   .table-title {
-    background: #007bff;
-    color: #fff;
-    text-align: center;
-    padding: 6px;
-    font-size: 15px;
-    font-weight: 600;
-    flex-shrink: 0;
+    background: #007bff; color: #fff; text-align: center;
+    padding: 8px; font-size: 15px; font-weight: 700;
   }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  th, td { border: 1px solid #e6e9ef; text-align: center; padding: 6px; word-wrap: break-word; }
+  th { background: #eef2f7; font-weight: 700; }
+  tr:nth-child(even) { background: #f9fbfd; }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    flex-grow: 1;
-    font-size: 13px;
-    table-layout: fixed;
-  }
-
-  th, td {
-    border: 1px solid #ddd;
-    text-align: center;
-    word-wrap: break-word;
-    padding: 4px;
-  }
-
-  th {
-    background: #e9ecef;
-    font-weight: 600;
-  }
-
-  tr:nth-child(even) {
-    background-color: #f8f9fa;
-  }
-
-  /* 🔹 адаптив под разные экраны */
+  /* планшет: 2 в ряд */
   @media (max-width: 900px) {
-    main {
-      grid-template-columns: repeat(2, 1fr) !important;
-    }
+    main { grid-template-columns: repeat(2, 1fr) !important; }
   }
-
+  /* телефон: 1 в ряд */
   @media (max-width: 600px) {
-    main {
-      grid-template-columns: 1fr !important;
-    }
+    main { grid-template-columns: 1fr !important; }
     .table-title { font-size: 14px; }
     table { font-size: 12px; }
-    th, td { padding: 3px; }
+    th, td { padding: 5px; }
   }
 </style>
 </head>
@@ -131,61 +85,106 @@
   <main id="tables"></main>
 
   <script>
-    // 🧩 Конфигурация потоков: ID таблицы, имя листа, диапазоны
-    const STREAM_CONFIG = {
-      1: { id: "ID_ПОТОК1", name: "Поток 1", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
-      2: { id: "ID_ПОТОК2", name: "Поток 2", ranges: ["A1:B6","A8:B13","A15:B20","A22:B27"] },
-      3: { id: "ID_ПОТОК3", name: "Поток 3", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
-      4: { id: "ID_ПОТОК4", name: "Поток 4", ranges: ["A1:B6","A8:B13","A15:B20","A22:B27"] },
-      5: { id: "ID_ПОТОК5", name: "Поток 5", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
-      6: { id: "ID_ПОТОК6", name: "Поток 6", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
-      7: { id: "ID_ПОТОК7", name: "Поток 7", ranges: ["A1:B5","A7:B11","A13:B17","A19:B23"] }
+    // Один и тот же файл (из твоей ссылки)
+    const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
+
+    // Укажи gid листа для каждого потока (у тебя сейчас есть лист с gid=0).
+    // Можно оставить всем gid:0, если всё на одном листе с разными диапазонами.
+    // ranges — это таблицы на листе (каждая — свой диапазон).
+    const STREAMS = {
+      1: { gid: 0, ranges: ["A1:B5","A7:B11","A13:B17","A19:B23","A25:B29","A31:B35"] },
+      2: { gid: 0, ranges: ["D1:F8","D10:F17","D19:F26","D28:F35"] }, // пример: 4 таблицы справа
+      3: { gid: 0, ranges: ["H1:J6","H8:J13","H15:J20","H22:J27","H29:J34","H36:J41"] },
+      4: { gid: 0, ranges: ["A40:C47","A49:C56","A58:C65","A67:C74"] },
+      5: { gid: 0, ranges: ["E40:G45","E47:G52","E54:G59","E61:G66","E68:G73","E75:G80"] },
+      6: { gid: 0, ranges: ["K1:M7","K9:M15","K17:M23","K25:M31","K33:M39","K41:M47"] },
+      7: { gid: 0, ranges: ["A82:C88","A90:C96","A98:C104","A106:C112"] }
     };
 
     const container = document.getElementById("tables");
     const select = document.getElementById("streamSelect");
 
-    async function loadTable(baseId, sheetName, range, title) {
-      const url = `https://docs.google.com/spreadsheets/d/${baseId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&range=${range}`;
-      const response = await fetch(url);
-      const text = await response.text();
+    let currentStream = null;
+    let allTablesHTML = [];
+    let pageIndex = 0;
+    let intervalId = null;
+    const PAGE_SIZE = 3;       // показываем по 3 таблицы
+    const ROTATE_MS = 20000;   // каждые 20 секунд
+
+    function gvizCsvUrl({sheetId, gid, range}) {
+      return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}&range=${range}`;
+    }
+
+    async function loadTable({gid, range, title}) {
+      const url = gvizCsvUrl({ sheetId: SHEET_ID, gid, range });
+      const res = await fetch(url);
+      const text = await res.text();
       const rows = text.trim().split("\n").map(r => r.split(","));
+      if (!rows.length) {
+        return `<div class="table-box"><div class="table-title">${title}</div><p style="text-align:center;color:#c00;margin:10px 0;">Пусто</p></div>`;
+      }
       let html = `<div class="table-box"><div class="table-title">${title}</div><table><thead><tr>`;
       rows[0].forEach(cell => html += `<th>${cell}</th>`);
       html += `</tr></thead><tbody>`;
       for (let i = 1; i < rows.length; i++) {
-        if (!rows[i][0]) continue;
-        html += `<tr>${rows[i].map(c => `<td>${c}</td>`).join("")}</tr>`;
+        if (rows[i].every(c => !c)) continue;
+        html += `<tr>${rows[i].map(c => `<td>${c ?? ""}</td>`).join("")}</tr>`;
       }
       html += `</tbody></table></div>`;
       return html;
     }
 
-    async function renderStream(stream) {
-      container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
+    function renderPage() {
+      if (!allTablesHTML.length) return;
+      container.innerHTML = "";
 
-      const cfg = STREAM_CONFIG[stream];
+      const start = pageIndex * PAGE_SIZE;
+      const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
+
+      // если дошли до конца и осталось меньше 3 — показываем то, что есть
+      if (!slice.length) {
+        pageIndex = 0;
+        return renderPage();
+      }
+
+      // колонок ровно столько, сколько таблиц на экране (до 3)
+      container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 3)}, 1fr)`;
+
+      slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
+
+      pageIndex++;
+      const totalPages = Math.ceil(allTablesHTML.length / PAGE_SIZE);
+      if (pageIndex >= totalPages) pageIndex = 0;
+    }
+
+    async function renderStream(streamKey) {
+      currentStream = streamKey;
+      container.innerHTML = `<p style="text-align:center;color:#555;">Загрузка...</p>`;
+      if (intervalId) { clearInterval(intervalId); intervalId = null; }
+
+      const cfg = STREAMS[streamKey];
       if (!cfg) {
-        container.innerHTML = "<p style='color:red;text-align:center;'>Нет данных для этого потока</p>";
+        container.innerHTML = `<p style="text-align:center;color:#c00;">Нет конфигурации для потока ${streamKey}</p>`;
         return;
       }
 
-      // 🔸 Количество колонок
-      const count = cfg.ranges.length;
-      if (count <= 4) container.style.gridTemplateColumns = "repeat(2, 1fr)";
-      else container.style.gridTemplateColumns = "repeat(3, 1fr)";
-
-      container.innerHTML = "";
-
+      // грузим все таблицы выбранного потока
+      allTablesHTML = [];
       for (let i = 0; i < cfg.ranges.length; i++) {
         try {
-          const html = await loadTable(cfg.id, cfg.name, cfg.ranges[i], `Таблица ${i + 1}`);
-          container.insertAdjacentHTML("beforeend", html);
+          const html = await loadTable({ gid: cfg.gid, range: cfg.ranges[i], title: `Таблица ${i+1}` });
+          allTablesHTML.push(html);
         } catch {
-          container.insertAdjacentHTML("beforeend",
-            `<div class="table-box"><div class="table-title">Таблица ${i + 1}</div><p style='color:red;text-align:center;'>Ошибка загрузки</p></div>`);
+          allTablesHTML.push(`<div class="table-box"><div class="table-title">Таблица ${i+1}</div><p style="text-align:center;color:#c00;margin:10px 0;">Ошибка загрузки</p></div>`);
         }
       }
+
+      // если таблиц меньше 3 — покажем все сразу
+      pageIndex = 0;
+      renderPage();
+
+      // автопереключение каждые 20 секунд
+      intervalId = setInterval(renderPage, ROTATE_MS);
     }
 
     select.addEventListener("change", () => renderStream(select.value));
