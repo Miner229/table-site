@@ -5,158 +5,272 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ArtVin Cup</title>
 <style>
-  html, body { margin:0; height:100%; overflow-x:hidden; background:#f7f9fb; font-family:"Segoe UI",Arial,sans-serif; color:#333; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow-x: hidden;
+    background: #f7f9fb;
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #333;
+  }
 
   header {
-    position:fixed; top:0; left:0; right:0; height:100px;
-    background:#0069d9; color:#fff; display:flex; align-items:center; justify-content:space-between;
-    padding:0 40px; z-index:10; box-shadow:0 3px 10px rgba(0,0,0,.25);
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 100px;
+    background: #0069d9;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    z-index: 10;
+    box-shadow: 0 3px 10px rgba(0,0,0,.25);
   }
-  .header-title{display:flex; align-items:center; gap:15px;}
-  header h1{margin:0; font-size:26px; font-weight:800;}
-  .header-title img{height:80px; width:auto; border-radius:6px; background:#fff; padding:4px;}
-  .stream-select{font-size:16px; padding:8px 14px; border:none; border-radius:6px; color:#007bff; background:#fff; cursor:pointer; font-weight:600;}
+
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 800;
+  }
+
+  .header-title img {
+    height: 80px;
+    width: auto;
+    border-radius: 6px;
+    background: #fff;
+    padding: 4px;
+  }
+
+  .stream-select {
+    font-size: 16px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    color: #007bff;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 600;
+  }
 
   main {
-    position:absolute; top:100px; bottom:0; left:0; right:0;
-    display:grid; gap:10px; padding:12px; box-sizing:border-box;
-    grid-template-columns:repeat(3,1fr);
+    position: absolute;
+    top: 100px; bottom: 0; left: 0; right: 0;
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    box-sizing: border-box;
+    grid-template-columns: repeat(3, 1fr);
   }
-  .table-box{background:#fff; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.08); display:flex; flex-direction:column; overflow:hidden;}
-  .table-title{background:#007bff; color:#fff; text-align:center; padding:8px; font-size:15px; font-weight:700;}
-  table{width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed;}
-  th,td{border:1px solid #e6e9ef; text-align:center; padding:6px;}
-  th{background:#eef2f7; font-weight:700;}
-  tr:nth-child(even){background:#f9fbfd;}
-  @media (max-width:900px){main{grid-template-columns:repeat(2,1fr)!important;}}
-  @media (max-width:600px){main{grid-template-columns:1fr!important; table{font-size:12px;} th,td{padding:5px;}}}
+
+  .table-box {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: opacity 0.5s ease;
+  }
+
+  .table-title {
+    background: #007bff;
+    color: #fff;
+    text-align: center;
+    padding: 8px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    table-layout: fixed;
+  }
+
+  th, td {
+    border: 1px solid #e6e9ef;
+    text-align: center;
+    padding: 6px;
+  }
+
+  th {
+    background: #eef2f7;
+    font-weight: 700;
+  }
+
+  tr:nth-child(even) { background: #f9fbfd; }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: repeat(2, 1fr) !important; }
+  }
+
+  @media (max-width: 600px) {
+    main { grid-template-columns: 1fr !important; }
+    .table-title { font-size: 14px; }
+    table { font-size: 12px; }
+    th, td { padding: 5px; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <div class="header-title">
-    <h1>ArtVin Cup</h1>
-    <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
-         alt="Логотип"
-         onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
-  </div>
-  <select id="streamSelect" class="stream-select">
-    <option value="" disabled selected>Выберите поток</option>
-    <option value="1">поток 1</option>
-    <option value="2">поток 2</option>
-    <option value="3">поток 3</option>
-    <option value="4">поток 4</option>
-    <option value="5">поток 5</option>
-    <option value="6">поток 6</option>
-    <option value="7">поток 7</option>
-  </select>
-</header>
+  <header>
+    <div class="header-title">
+      <h1>ArtVin Cup</h1>
+      <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
+           alt="Логотип"
+           onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
+    </div>
 
-<main id="tables"></main>
+    <select id="streamSelect" class="stream-select">
+      <option value="" disabled selected>Выберите поток</option>
+      <option value="1">поток 1</option>
+      <option value="2">поток 2</option>
+      <option value="3">поток 3</option>
+      <option value="4">поток 4</option>
+      <option value="5">поток 5</option>
+      <option value="6">поток 6</option>
+      <option value="7">поток 7</option>
+    </select>
+  </header>
 
-<script>
-const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
+  <main id="tables"></main>
 
-// ✅ Используем строчные имена вкладок (точно как в Google Sheets)
-const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
-  2: { sheet: "поток 2", ranges: ["A3:B15","D3:E15","G3:H14","A17:B28","D17:E26","G17:H26"] },
-  3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
-  4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
-  5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E26"] },
-  6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
-  7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
-};
+  <script>
+    const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
-const container = document.getElementById("tables");
-const select = document.getElementById("streamSelect");
+    // Вкладки написаны строчными буквами (точно как в Google Sheets)
+    const STREAMS = {
+      1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
+      2: { sheet: "поток 2", ranges: ["A3:B15","D3:E15","G3:H14","A17:B28","D17:E26","G17:H26"] },
+      3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
+      4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
+      5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E26"] },
+      6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
+      7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
+    };
 
-let allTablesHTML = [];
-let pageIndex = 0;
-let intervalId = null;
-let autoRefreshId = null;
-let requestToken = 0;
-const PAGE_SIZE = 3;
-const ROTATE_MS = 20000;
-const REFRESH_MS = 20000; // автообновление каждые 20 секунд
+    const container = document.getElementById("tables");
+    const select = document.getElementById("streamSelect");
 
-function buildUrl(sheet, range) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
-}
+    let allTablesHTML = [];
+    let pageIndex = 0;
+    let intervalId = null;
+    let autoRefreshId = null;
+    let requestToken = 0;
 
-function clean(text) {
-  return text.replace(/^"+|"+$/g, "").replace(/""/g, '"').trim();
-}
+    const PAGE_SIZE = 3;
+    const ROTATE_MS = 20000;  // смена страниц (3 таблицы)
+    const REFRESH_MS = 20000; // автообновление данных (без "Загрузка...")
 
-function parseCSV(text) {
-  const lines = text.trim().split("\n").map(l => l.split(",").map(clean));
-  return lines.filter(r => r.some(c => c !== ""));
-}
-
-async function loadTable(sheet, range, title, token) {
-  const url = buildUrl(sheet, range);
-  const res = await fetch(url);
-  const text = await res.text();
-  if (token !== requestToken) return null;
-
-  const rows = parseCSV(text);
-  if (!rows.length)
-    return `<div class="table-box"><div class="table-title">${title}</div><p style="text-align:center;color:#c00;">Пусто</p></div>`;
-
-  let apparatus = "";
-  let headerIndex = 0;
-  if (rows[0].filter(c => c !== "").length === 1) {
-    apparatus = rows[0][0];
-    headerIndex = 1;
-  }
-
-  let html = `<div class="table-box"><div class="table-title">${title}${apparatus ? `<div style='font-size:13px;color:#dce6f7;'>${apparatus}</div>` : ""}</div><table><thead><tr>`;
-  rows[headerIndex].forEach(h => html += `<th>${h}</th>`);
-  html += "</tr></thead><tbody>";
-  for (let i = headerIndex + 1; i < rows.length; i++) {
-    html += "<tr>" + rows[i].map(c => `<td>${c}</td>`).join("") + "</tr>";
-  }
-  html += "</tbody></table></div>";
-  return html;
-}
-
-function renderPage() {
-  if (!allTablesHTML.length) return;
-  container.innerHTML = "";
-  const start = pageIndex * PAGE_SIZE;
-  const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
-  container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 3)}, 1fr)`;
-  slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
-  pageIndex = (pageIndex + 1) % Math.ceil(allTablesHTML.length / PAGE_SIZE);
-}
-
-async function renderStream(key) {
-  const cfg = STREAMS[key];
-  if (!cfg) { container.innerHTML = "<p style='color:red;text-align:center;'>Нет данных</p>"; return; }
-
-  container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
-  if (intervalId) clearInterval(intervalId);
-  if (autoRefreshId) clearInterval(autoRefreshId);
-  requestToken++;
-  const token = requestToken;
-
-  allTablesHTML = [];
-  for (let i = 0; i < cfg.ranges.length; i++) {
-    try {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
-      allTablesHTML.push(html);
-    } catch {
-      allTablesHTML.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
+    function buildUrl(sheet, range) {
+      return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
     }
-  }
 
-  pageIndex = 0;
-  renderPage();
-  intervalId = setInterval(renderPage, ROTATE_MS);
-  autoRefreshId = setInterval(() => renderStream(key), REFRESH_MS); // автообновление
-}
+    function clean(text) {
+      return text.replace(/^"+|"+$/g, "").replace(/""/g, '"').trim();
+    }
 
-select.addEventListener("change", () => renderStream(select.value));
-</script>
+    function parseCSV(text) {
+      const lines = text.trim().split("\n").map(l => l.split(",").map(clean));
+      return lines.filter(r => r.some(c => c !== ""));
+    }
+
+    async function loadTable(sheet, range, title, token) {
+      const url = buildUrl(sheet, range);
+      const res = await fetch(url);
+      const text = await res.text();
+      if (token !== requestToken) return null;
+
+      const rows = parseCSV(text);
+      if (!rows.length)
+        return `<div class="table-box"><div class="table-title">${title}</div><p style="text-align:center;color:#c00;">Пусто</p></div>`;
+
+      let apparatus = "";
+      let headerIndex = 0;
+      if (rows[0].filter(c => c !== "").length === 1) {
+        apparatus = rows[0][0];
+        headerIndex = 1;
+      }
+
+      let html = `<div class="table-box"><div class="table-title">${title}${apparatus ? `<div style='font-size:13px;color:#dce6f7;'>${apparatus}</div>` : ""}</div><table><thead><tr>`;
+      rows[headerIndex].forEach(h => html += `<th>${h}</th>`);
+      html += "</tr></thead><tbody>";
+      for (let i = headerIndex + 1; i < rows.length; i++) {
+        html += "<tr>" + rows[i].map(c => `<td>${c}</td>`).join("") + "</tr>";
+      }
+      html += "</tbody></table></div>";
+      return html;
+    }
+
+    function renderPage() {
+      if (!allTablesHTML.length) return;
+      container.innerHTML = "";
+      const start = pageIndex * PAGE_SIZE;
+      const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
+      container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 3)}, 1fr)`;
+      slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
+      pageIndex = (pageIndex + 1) % Math.ceil(allTablesHTML.length / PAGE_SIZE);
+    }
+
+    async function refreshTables(key) {
+      const cfg = STREAMS[key];
+      if (!cfg) return;
+      const token = requestToken;
+
+      const newTables = [];
+      for (let i = 0; i < cfg.ranges.length; i++) {
+        try {
+          const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
+          if (html) newTables.push(html);
+        } catch {
+          newTables.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
+        }
+      }
+
+      if (token === requestToken) {
+        allTablesHTML = newTables;
+      }
+    }
+
+    async function renderStream(key) {
+      const cfg = STREAMS[key];
+      if (!cfg) { container.innerHTML = "<p style='color:red;text-align:center;'>Нет данных</p>"; return; }
+
+      container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
+      if (intervalId) clearInterval(intervalId);
+      if (autoRefreshId) clearInterval(autoRefreshId);
+      requestToken++;
+      const token = requestToken;
+
+      allTablesHTML = [];
+      for (let i = 0; i < cfg.ranges.length; i++) {
+        try {
+          const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
+          allTablesHTML.push(html);
+        } catch {
+          allTablesHTML.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
+        }
+      }
+
+      pageIndex = 0;
+      renderPage();
+
+      // листаем страницы каждые 20 секунд
+      intervalId = setInterval(renderPage, ROTATE_MS);
+
+      // 🔹 автообновление без сброса страницы
+      autoRefreshId = setInterval(() => refreshTables(key), REFRESH_MS);
+    }
+
+    select.addEventListener("change", () => renderStream(select.value));
+  </script>
 </body>
 </html>
