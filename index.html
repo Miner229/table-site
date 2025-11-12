@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Рейтинг потоков</title>
+<title>ArtVin Cup</title>
 <style>
   html, body {
     margin: 0;
@@ -17,8 +17,8 @@
   header {
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: 100px; /* 🔹 выше шапка */
-    background: #0069d9; /* 🔹 насыщенно-синий */
+    height: 100px; /* увеличенная шапка */
+    background: #0069d9;
     color: #fff;
     display: flex;
     align-items: center;
@@ -42,7 +42,7 @@
   }
 
   .header-title img {
-    height: 80px; /* 🔹 немного больше */
+    height: 80px;
     width: auto;
     border-radius: 6px;
     background: white;
@@ -129,7 +129,6 @@
       <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
            alt="Логотип"
            onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
-      <!-- onerror — подгружает с GitHub Pages, если raw не доступен -->
     </div>
 
     <select id="streamSelect" class="stream-select">
@@ -167,19 +166,62 @@
     const PAGE_SIZE = 3;
     const ROTATE_MS = 20000;
 
+    // 🧩 Обновлённая функция loadTable: сохраняет название снаряда сверху
     async function loadTable({gid, range, title}) {
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}&range=${range}`;
       const res = await fetch(url);
       const text = await res.text();
-      const rows = text.trim().split("\n").map(r => r.split(","));
-      if (!rows.length) return `<div class="table-box"><div class="table-title">${title}</div><p style="text-align:center;color:#c00;margin:10px 0;">Пусто</p></div>`;
-      let html = `<div class="table-box"><div class="table-title">${title}</div><table><thead><tr>`;
-      rows[0].forEach(c => html += `<th>${c}</th>`);
-      html += `</tr></thead><tbody>`;
-      for (let i = 1; i < rows.length; i++) {
-        if (rows[i].every(c => !c)) continue;
-        html += `<tr>${rows[i].map(c => `<td>${c ?? ""}</td>`).join("")}</tr>`;
+
+      const rows = text.trim().split("\n").map(r =>
+        r.split(",").map(c => {
+          if (c.length >= 2 && c.startsWith('"') && c.endsWith('"')) c = c.slice(1, -1);
+          return c.trim();
+        })
+      );
+
+      if (!rows.length) {
+        return `<div class="table-box">
+                  <div class="table-title">${title}</div>
+                  <p style="text-align:center;color:#c00;margin:10px 0;">Пусто</p>
+                </div>`;
       }
+
+      let tableLabel = title;
+      let apparatusName = "";
+      let headerRowIndex = 0;
+      const firstRow = rows[0];
+
+      // 🔹 Если первая строка содержит одно название (например, "Снаряд")
+      if (firstRow.filter(c => c !== "").length === 1) {
+        apparatusName = firstRow.find(c => c !== "");
+        headerRowIndex = 1;
+      }
+
+      // Если нет заголовков после титула
+      if (!rows[headerRowIndex]) {
+        return `<div class="table-box">
+                  <div class="table-title">${tableLabel}</div>
+                  <p style="text-align:center;color:#c00;margin:10px 0;">Нет данных</p>
+                </div>`;
+      }
+
+      // 🔹 Шапка таблицы с снарядом
+      let html = `<div class="table-box">
+                    <div class="table-title">
+                      ${tableLabel}
+                      ${apparatusName ? `<div style="font-size:13px; font-weight:500; color:#dce6f7; margin-top:2px;">${apparatusName}</div>` : ""}
+                    </div>
+                    <table><thead><tr>`;
+
+      rows[headerRowIndex].forEach(cell => html += `<th>${cell}</th>`);
+      html += `</tr></thead><tbody>`;
+
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.every(c => c === "")) continue;
+        html += `<tr>${row.map(c => `<td>${c}</td>`).join("")}</tr>`;
+      }
+
       html += `</tbody></table></div>`;
       return html;
     }
