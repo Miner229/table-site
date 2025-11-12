@@ -28,36 +28,10 @@
     box-shadow: 0 3px 10px rgba(0,0,0,.25);
   }
 
-  .header-title {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-  }
-
-  header h1 {
-    margin: 0;
-    font-size: 26px;
-    font-weight: 800;
-  }
-
-  .header-title img {
-    height: 80px;
-    width: auto;
-    border-radius: 6px;
-    background: #fff;
-    padding: 4px;
-  }
-
-  .stream-select {
-    font-size: 16px;
-    padding: 8px 14px;
-    border: none;
-    border-radius: 6px;
-    color: #007bff;
-    background: #fff;
-    cursor: pointer;
-    font-weight: 600;
-  }
+  .header-title { display: flex; align-items: center; gap: 15px; }
+  header h1 { margin: 0; font-size: 26px; font-weight: 800; }
+  .header-title img { height: 80px; border-radius: 6px; background: #fff; padding: 4px; }
+  .stream-select { font-size: 16px; padding: 8px 14px; border: none; border-radius: 6px; color: #007bff; background: #fff; cursor: pointer; font-weight: 600; }
 
   main {
     position: absolute;
@@ -76,7 +50,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.4s ease;
   }
 
   .table-title {
@@ -101,11 +75,7 @@
     padding: 6px;
   }
 
-  th {
-    background: #eef2f7;
-    font-weight: 700;
-  }
-
+  th { background: #eef2f7; font-weight: 700; }
   tr:nth-child(even) { background: #f9fbfd; }
 
   @media (max-width: 900px) {
@@ -128,7 +98,6 @@
            alt="Логотип"
            onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
     </div>
-
     <select id="streamSelect" class="stream-select">
       <option value="" disabled selected>Выберите поток</option>
       <option value="1">поток 1</option>
@@ -145,8 +114,6 @@
 
   <script>
     const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
-
-    // Вкладки написаны строчными буквами (точно как в Google Sheets)
     const STREAMS = {
       1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
       2: { sheet: "поток 2", ranges: ["A3:B15","D3:E15","G3:H14","A17:B28","D17:E26","G17:H26"] },
@@ -163,12 +130,12 @@
     let allTablesHTML = [];
     let pageIndex = 0;
     let intervalId = null;
-    let autoRefreshId = null;
+    let refreshId = null;
     let requestToken = 0;
 
     const PAGE_SIZE = 3;
-    const ROTATE_MS = 20000;  // смена страниц (3 таблицы)
-    const REFRESH_MS = 20000; // автообновление данных (без "Загрузка...")
+    const ROTATE_MS = 20000;   // как часто меняются группы таблиц
+    const REFRESH_MS = 20000;  // как часто обновляются данные в фоне
 
     function buildUrl(sheet, range) {
       return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
@@ -246,7 +213,7 @@
 
       container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
       if (intervalId) clearInterval(intervalId);
-      if (autoRefreshId) clearInterval(autoRefreshId);
+      if (refreshId) clearInterval(refreshId);
       requestToken++;
       const token = requestToken;
 
@@ -263,11 +230,11 @@
       pageIndex = 0;
       renderPage();
 
-      // листаем страницы каждые 20 секунд
+      // ротация таблиц (страницы)
       intervalId = setInterval(renderPage, ROTATE_MS);
 
-      // 🔹 автообновление без сброса страницы
-      autoRefreshId = setInterval(() => refreshTables(key), REFRESH_MS);
+      // автообновление только данных, без сброса страницы
+      refreshId = setInterval(() => refreshTables(key), REFRESH_MS);
     }
 
     select.addEventListener("change", () => renderStream(select.value));
