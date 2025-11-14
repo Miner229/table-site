@@ -80,8 +80,8 @@
   .apparatus {
     padding: 10px;
     text-align: center;
-    font-size: 18px;
-    font-weight: 800;
+    font-size: 20px;
+    font-weight: 900;
     background: #eef4ff;
     border-bottom: 1px solid #dce2e9;
   }
@@ -95,19 +95,19 @@
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 16px;
+    font-size: 18px;
   }
 
   th, td {
     border: 1px solid #dce2e9;
     text-align: center;
-    padding: 10px;
+    padding: 14px;
     font-weight: 700;
   }
 
   th {
     background: #e6ecf5;
-    font-size: 18px;
+    font-size: 20px;
   }
 
   tbody tr:nth-child(even) td { background: #f8fafc; }
@@ -118,10 +118,10 @@
   }
 
   @media (min-width: 1800px) {
-    table { font-size: 26px; }
-    th, td { padding: 18px; }
-    .table-title { font-size: 28px; }
-    .apparatus { font-size: 24px; }
+    table { font-size: 28px; }
+    th, td { padding: 20px; }
+    .table-title { font-size: 30px; }
+    .apparatus { font-size: 26px; }
   }
 
   @media (max-width: 900px) {
@@ -194,15 +194,11 @@ function buildUrl(sheet, range){
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
-/**
- * Главная функция: грузим диапазон и строим HTML для одной таблицы.
- * Алгоритм:
- *  - первая строка диапазона -> снаряд, но из неё вырезаем слова "ФИО" и "Оценка"
- *  - все остальные строки:
- *      * пропускаем, если первая ячейка пустая
- *      * пропускаем, если в первой ячейке слово "ФИО"
- *      * остальное считаем строками участников
- */
+/*  
+--------------------------
+  НОВЫЙ ПРАВИЛЬНЫЙ ПАРСЕР
+--------------------------
+*/
 async function loadTable(sheet, range, title, token){
   const res = await fetch(buildUrl(sheet, range));
   const text = await res.text();
@@ -211,51 +207,52 @@ async function loadTable(sheet, range, title, token){
   const rows = parseCSV(text);
   if (!rows.length) return null;
 
-  // --- 1. СНАРЯД ---
-  // Склеиваем всю первую строку в строку и выбрасываем "ФИО" и "Оценка"
-  let apparatusRaw = rows[0].join(" ").trim();
-  apparatusRaw = apparatusRaw
-    .replace(/\bФИО\b/gi, "")
-    .replace(/\bОЦЕНКА\b/gi, "")
-    .trim();
-  if (!apparatusRaw) {
-    // если вдруг всё выбросили — вернём первую не пустую ячейку
-    for (const c of rows[0]) {
-      if (c.trim() !== "") {
-        apparatusRaw = c.trim();
-        break;
-      }
+  // --- 1. ИЩЕМ СНАРЯД (первая нормальная строка без ФИО/Оценка) ---
+  let apparatus = "";
+  let headerRowIndex = -1;
+
+  for (let i = 0; i < rows.length; i++) {
+    const rowText = rows[i].join(" ").trim();
+
+    if (!rowText) continue;
+    if (/фио/i.test(rowText) || /оценка/i.test(rowText)) {
+      headerRowIndex = i;
+      continue;
     }
+
+    // Это и есть снаряд
+    apparatus = rowText;
+    headerRowIndex = i + 1;
+    break;
   }
-  const apparatus = apparatusRaw || "Снаряд";
 
-  // --- 2. УЧАСТНИКИ ---
+  if (!apparatus) apparatus = "Снаряд";
+
+  // Если заголовков нет – делаем свои
+  const headers = rows[headerRowIndex] ?? ["ФИО", "Оценка"];
+
+  // --- 3. УЧАСТНИКИ ---
   const participants = [];
-
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = headerRowIndex + 1; i < rows.length; i++){
     const row = rows[i];
     if (!row || !row.length) continue;
 
     const fio = (row[0] || "").trim();
     const score = (row[1] || "").trim();
 
-    // пустая строка — пропускаем
-    if (fio === "" && score === "") continue;
-
-    // строка шапки "ФИО" — пропускаем
-    if (fio.toUpperCase().includes("ФИО")) continue;
+    if (!fio && !score) continue;
 
     participants.push([fio, score]);
   }
 
-  // --- 3. ЗОЛОТО ---
+  // --- 4. ЗОЛОТО ---
   let maxScore = -Infinity;
-  participants.forEach(r => {
-    const val = parseFloat(r[1]);
-    if (!isNaN(val) && val > maxScore) maxScore = val;
+  participants.forEach(([fio, score]) => {
+    const n = parseFloat(score);
+    if (!isNaN(n) && n > maxScore) maxScore = n;
   });
 
-  // --- 4. HTML ---
+  // --- 5. HTML ---
   let html = `
     <div class="table-box">
       <div class="table-title">${title}</div>
@@ -272,9 +269,8 @@ async function loadTable(sheet, range, title, token){
   `;
 
   participants.forEach(([fio, score]) => {
-    const num = parseFloat(score);
-    const isGold = !isNaN(num) && num === maxScore;
-
+    const v = parseFloat(score);
+    const isGold = !isNaN(v) && v === maxScore;
     html += `
       <tr class="${isGold ? "gold" : ""}">
         <td>${fio}</td>
@@ -310,23 +306,16 @@ async function refreshTables(stream){
   const token = requestToken;
   const list = [];
 
-  for (let i = 0; i < cfg.ranges.length; i++){
+  for (const [i, range] of cfg.ranges.entries()) {
     try {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-      if (html) list.push(html);
-    } catch (e) {
-      list.push(
-        `<div class="table-box">
-           <div class="table-title">Таблица ${i+1}</div>
-           <div style="padding:10px;text-align:center;color:#c00;">Ошибка загрузки</div>
-         </div>`
-      );
+      const html = await loadTable(cfg.sheet, range, `Таблица ${i+1}`, token);
+      list.push(html);
+    } catch {
+      list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
     }
   }
 
-  if (token === requestToken) {
-    allTablesHTML = list;
-  }
+  if (token === requestToken) allTablesHTML = list;
 }
 
 async function renderStream(stream){
@@ -345,17 +334,12 @@ async function renderStream(stream){
   const token = requestToken;
 
   const list = [];
-  for (let i = 0; i < cfg.ranges.length; i++){
+  for (const [i, range] of cfg.ranges.entries()) {
     try {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-      if (html) list.push(html);
-    } catch (e) {
-      list.push(
-        `<div class="table-box">
-           <div class="table-title">Таблица ${i+1}</div>
-           <div style="padding:10px;text-align:center;color:#c00;">Ошибка загрузки</div>
-         </div>`
-      );
+      const html = await loadTable(cfg.sheet, range, `Таблица ${i+1}`, token);
+      list.push(html);
+    } catch {
+      list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
     }
   }
 
