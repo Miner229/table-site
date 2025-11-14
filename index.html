@@ -194,10 +194,15 @@ function buildUrl(sheet, range){
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
-/*  
---------------------------
-  НОВЫЙ ПРАВИЛЬНЫЙ ПАРСЕР
---------------------------
+// --- проверка, что строка = нормальное число ---
+function isNumeric(value){
+  return /^-?\d+(\.\d+)?$/.test(value);
+}
+
+/*
+-----------------------------------------
+НОВАЯ СИСТЕМА ОПРЕДЕЛЕНИЯ СНАРЯДА + БЕТОН
+-----------------------------------------
 */
 async function loadTable(sheet, range, title, token){
   const res = await fetch(buildUrl(sheet, range));
@@ -207,52 +212,57 @@ async function loadTable(sheet, range, title, token){
   const rows = parseCSV(text);
   if (!rows.length) return null;
 
-  // --- 1. ИЩЕМ СНАРЯД (первая нормальная строка без ФИО/Оценка) ---
+  // слова, которые мы НЕ считаем снарядом
+  const badWords = ["фио", "оценка", "баға", "аты-жөні", "аты жөні"];
+
   let apparatus = "";
   let headerRowIndex = -1;
 
-  for (let i = 0; i < rows.length; i++) {
-    const rowText = rows[i].join(" ").trim();
+  for (let i = 0; i < rows.length; i++){
+    let rowText = rows[i].join(" ").trim().toLowerCase();
 
     if (!rowText) continue;
-    if (/фио/i.test(rowText) || /оценка/i.test(rowText)) {
+
+    let bad = false;
+    for (let w of badWords){
+      if (rowText.includes(w)) { bad = true; break; }
+    }
+    if (bad){
       headerRowIndex = i;
       continue;
     }
 
-    // Это и есть снаряд
-    apparatus = rowText;
+    apparatus = rows[i].join(" ").trim();
     headerRowIndex = i + 1;
     break;
   }
 
   if (!apparatus) apparatus = "Снаряд";
 
-  // Если заголовков нет – делаем свои
-  const headers = rows[headerRowIndex] ?? ["ФИО", "Оценка"];
-
-  // --- 3. УЧАСТНИКИ ---
   const participants = [];
   for (let i = headerRowIndex + 1; i < rows.length; i++){
     const row = rows[i];
-    if (!row || !row.length) continue;
+    if (!row) continue;
 
-    const fio = (row[0] || "").trim();
-    const score = (row[1] || "").trim();
+    let fio = row[0] ? row[0].trim() : "";
+    let scoreRaw = row.length > 1 ? row[1].trim() : "";
 
-    if (!fio && !score) continue;
+    if (!fio && !scoreRaw) continue;
+
+    let score = scoreRaw;
 
     participants.push([fio, score]);
   }
 
-  // --- 4. ЗОЛОТО ---
+  // золото — только по числам
   let maxScore = -Infinity;
   participants.forEach(([fio, score]) => {
-    const n = parseFloat(score);
-    if (!isNaN(n) && n > maxScore) maxScore = n;
+    if (isNumeric(score)){
+      const n = parseFloat(score);
+      if (n > maxScore) maxScore = n;
+    }
   });
 
-  // --- 5. HTML ---
   let html = `
     <div class="table-box">
       <div class="table-title">${title}</div>
@@ -268,9 +278,8 @@ async function loadTable(sheet, range, title, token){
           <tbody>
   `;
 
-  participants.forEach(([fio, score]) => {
-    const v = parseFloat(score);
-    const isGold = !isNaN(v) && v === maxScore;
+  participants.forEach(([fio, score])=>{
+    const isGold = isNumeric(score) && parseFloat(score) === maxScore;
     html += `
       <tr class="${isGold ? "gold" : ""}">
         <td>${fio}</td>
@@ -296,8 +305,8 @@ function renderPage(){
 
   slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
 
-  const totalPages = Math.max(1, Math.ceil(allTablesHTML.length / PAGE_SIZE));
-  pageIndex = (pageIndex + 1) % totalPages;
+  const total = Math.max(1, Math.ceil(allTablesHTML.length / PAGE_SIZE));
+  pageIndex = (pageIndex + 1) % total;
 }
 
 async function refreshTables(stream){
@@ -306,9 +315,9 @@ async function refreshTables(stream){
   const token = requestToken;
   const list = [];
 
-  for (const [i, range] of cfg.ranges.entries()) {
+  for (let i = 0; i < cfg.ranges.length; i++){
     try {
-      const html = await loadTable(cfg.sheet, range, `Таблица ${i+1}`, token);
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
       list.push(html);
     } catch {
       list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
@@ -321,7 +330,7 @@ async function refreshTables(stream){
 async function renderStream(stream){
   const cfg = STREAMS[stream];
   if (!cfg){
-    container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных для этого потока</p>";
+    container.innerHTML = "<p style='text-align:center;color:red;'>Нет данных</p>";
     return;
   }
 
@@ -334,9 +343,10 @@ async function renderStream(stream){
   const token = requestToken;
 
   const list = [];
-  for (const [i, range] of cfg.ranges.entries()) {
+
+  for (let i = 0; i < cfg.ranges.length; i++){
     try {
-      const html = await loadTable(cfg.sheet, range, `Таблица ${i+1}`, token);
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
       list.push(html);
     } catch {
       list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
