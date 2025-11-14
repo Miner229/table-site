@@ -195,12 +195,20 @@ async function loadTable(sheet, range, title, token){
   const rows = parseCSV(text);
   if (!rows.length) return null;
 
-  // Снаряд — всегда rows[0][0]
-  const apparatus = rows[0][0] || "Снаряд";
+  // --- СНАРЯД ---
+  let apparatus = rows[0].join(" ").trim();
 
+  apparatus = apparatus
+    .replace(/\bФИО\b/gi, "")
+    .replace(/\bОценка\b/gi, "")
+    .replace(/[,;]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!apparatus) apparatus = "Снаряд";
+
+  // --- УЧАСТНИКИ ---
   const participants = [];
-
-  // rows[1] — это ФИО | Оценка → пропускаем
   for (let i = 2; i < rows.length; i++){
     const fio = rows[i][0] || "";
     const score = rows[i][1] || "";
@@ -210,34 +218,28 @@ async function loadTable(sheet, range, title, token){
     participants.push([fio.trim(), score.trim()]);
   }
 
-  // Золото
+  // --- ЗОЛОТО ---
   let max = -Infinity;
-  participants.forEach(([fio,score]) => {
+  participants.forEach(([fio, score]) => {
     const v = parseFloat(score);
     if (!isNaN(v) && v > max) max = v;
   });
 
+  // --- HTML ---
   let html = `
     <div class="table-box">
       <div class="table-title">${title}</div>
       <div class="apparatus">${apparatus}</div>
       <div class="table-wrapper">
         <table>
-          <thead>
-            <tr><th>ФИО</th><th>Оценка</th></tr>
-          </thead>
+          <thead><tr><th>ФИО</th><th>Оценка</th></tr></thead>
           <tbody>
   `;
 
-  participants.forEach(([fio, score]) => {
+  participants.forEach(([fio, score])=>{
     const v = parseFloat(score);
     const gold = (!isNaN(v) && v === max) ? "gold" : "";
-    html += `
-      <tr class="${gold}">
-        <td>${fio}</td>
-        <td>${score}</td>
-      </tr>
-    `;
+    html += `<tr class="${gold}"><td>${fio}</td><td>${score}</td></tr>`;
   });
 
   html += `
@@ -254,7 +256,6 @@ function renderPage(){
   container.innerHTML = "";
   const start = pageIndex * PAGE_SIZE;
   const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
-
   slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
 
   const total = Math.max(1, Math.ceil(allTablesHTML.length / PAGE_SIZE));
