@@ -28,37 +28,16 @@
     box-shadow: 0 3px 10px rgba(0,0,0,.25);
   }
 
-  .header-title {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-  }
-
-  header h1 {
-    margin: 0;
-    font-size: 26px;
-    font-weight: 800;
-  }
-
-  .header-title img {
-    height: 80px;
-    border-radius: 6px;
-    background: #fff;
-    padding: 4px;
-  }
+  .header-title { display: flex; align-items: center; gap: 15px; }
+  header h1 { margin: 0; font-size: 26px; font-weight: 800; }
+  .header-title img { height: 80px; border-radius: 6px; background: #fff; padding: 4px; }
 
   .stream-select {
-    font-size: 16px;
-    padding: 8px 14px;
-    border: none;
-    border-radius: 6px;
-    color: #007bff;
-    background: #fff;
-    cursor: pointer;
-    font-weight: 600;
+    font-size: 16px; padding: 8px 14px; border: none;
+    border-radius: 6px; color: #007bff; background: #fff;
+    cursor: pointer; font-weight: 600;
   }
 
-  /* Контейнер для таблиц */
   main {
     position: absolute;
     top: 100px; bottom: 0; left: 0; right: 0;
@@ -66,7 +45,7 @@
     display: grid;
     gap: 12px;
     box-sizing: border-box;
-    grid-template-columns: repeat(2, 1fr); /* 2 таблицы в ряд */
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .table-box {
@@ -89,7 +68,7 @@
 
   .table-wrapper {
     flex: 1;
-    overflow: auto; /* если данных много – появится скролл внутри блока */
+    overflow: auto;
   }
 
   table {
@@ -106,12 +85,9 @@
     font-weight: 700;
   }
 
-  tbody tr:nth-child(odd) {
-    background: #f7faff;
-  }
-
+  tbody tr:nth-child(odd) { background: #f7faff; }
   tbody tr:first-child {
-    background: #eef2f7;   /* визуально делаем первую строку как “шапку” */
+    background: #eef2f7;
     font-weight: 900;
   }
 
@@ -121,6 +97,7 @@
 </style>
 </head>
 <body>
+
 <header>
   <div class="header-title">
     <h1>ArtVin Cup</h1>
@@ -145,7 +122,6 @@
 <script>
   const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
-  // Диапазоны – как у тебя были
   const STREAMS = {
     1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
     2: { sheet: "поток 2", ranges: ["A3:B15","D3:E15","G3:H14","A17:B28","D17:E26","G17:H26"] },
@@ -165,9 +141,9 @@
   let refreshId = null;
   let requestToken = 0;
 
-  const PAGE_SIZE = 2;         // показываем по 2 таблицы
-  const ROTATE_MS = 20000;     // каждые 20 сек меняем набор
-  const REFRESH_MS = 20000;    // каждые 20 сек обновляем данные в фоне
+  const PAGE_SIZE = 2;
+  const ROTATE_MS = 20000;
+  const REFRESH_MS = 20000;
 
   function buildUrl(sheet, range) {
     return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
@@ -178,11 +154,9 @@
   }
 
   function parseCSV(text) {
-    // Ничего не выбрасываем, все строки/колонки как есть
-    return text
-      .trim()
-      .split("\n")
-      .map(line => line.split(",").map(cleanCell));
+    return text.trim().split("\n").map(line =>
+      line.split(",").map(cleanCell)
+    );
   }
 
   async function loadTable(sheet, range, title, token) {
@@ -192,30 +166,52 @@
 
     const rows = parseCSV(text);
     if (!rows.length) {
-      return `<div class="table-box">
-                <div class="table-title">${title}</div>
-                <div class="table-wrapper"><table><tbody>
-                  <tr><td>Пусто</td></tr>
-                </tbody></table></div>
-              </div>`;
+      return `
+        <div class="table-box">
+          <div class="table-title">${title}</div>
+          <div class="table-wrapper"><table><tbody>
+            <tr><td>Пусто</td></tr>
+          </tbody></table></div>
+        </div>`;
     }
 
-    let html = `<div class="table-box">
-                  <div class="table-title">${title}</div>
-                  <div class="table-wrapper">
-                    <table><tbody>`;
+    let html = `
+      <div class="table-box">
+        <div class="table-title">${title}</div>
+        <div class="table-wrapper">
+          <table><tbody>`;
 
-    rows.forEach(row => {
-      html += "<tr>";
-      row.forEach(cell => {
-        html += `<td>${cell}</td>`;
-      });
-      html += "</tr>";
+    rows.forEach((row, index) => {
+      const nonEmpty = row.filter(c => c.trim() !== "");
+
+      // 🔥 Автоматическое объединение первой строки (название снаряда)
+      if (index === 0 && nonEmpty.length === 1) {
+        html += `
+          <tr>
+            <td colspan="${row.length}"
+                style="
+                  font-weight:900;
+                  text-align:center;
+                  font-size:20px;
+                  background:#eef2f7;
+                ">
+              ${nonEmpty[0]}
+            </td>
+          </tr>`;
+      } else {
+        html += "<tr>";
+        row.forEach(cell => {
+          html += `<td>${cell}</td>`;
+        });
+        html += "</tr>";
+      }
     });
 
-    html += `     </tbody></table>
-                </div>
-              </div>`;
+    html += `
+          </tbody></table>
+        </div>
+      </div>`;
+
     return html;
   }
 
@@ -237,22 +233,22 @@
     if (!cfg) return;
 
     const token = requestToken;
-    const newTables = [];
+    const updated = [];
 
     for (let i = 0; i < cfg.ranges.length; i++) {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
-      if (html) newTables.push(html);
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
+      if (html) updated.push(html);
     }
 
     if (token === requestToken) {
-      allTablesHTML = newTables;
+      allTablesHTML = updated;
     }
   }
 
   async function renderStream(streamKey) {
     const cfg = STREAMS[streamKey];
     if (!cfg) {
-      container.innerHTML = "<p style='text-align:center;color:red;'>Нет данных для этого потока</p>";
+      container.innerHTML = "<p style='text-align:center;color:red;'>Нет данных</p>";
       return;
     }
 
@@ -266,7 +262,7 @@
     allTablesHTML = [];
 
     for (let i = 0; i < cfg.ranges.length; i++) {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
       if (html) allTablesHTML.push(html);
     }
 
@@ -279,5 +275,6 @@
 
   select.addEventListener("change", () => renderStream(select.value));
 </script>
+
 </body>
 </html>
