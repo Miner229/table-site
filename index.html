@@ -98,12 +98,10 @@
 
   tbody tr:nth-child(odd) { background: #f7faff; }
 
-  /* TOP 3 PODIUM */
-  .gold   { background: #ffe680 !important; font-weight: 900 !important; }
-  .silver { background: #e6e6e6 !important; font-weight: 900 !important; }
-  .bronze { background: #f2c199 !important; font-weight: 900 !important; }
+  /* ONLY GOLD */
+  .gold { background: #ffe680 !important; font-weight: 900 !important; }
 
-  /* TV MODE (авто-масштабирование на большие экраны) */
+  /* TV MODE */
   @media (min-width: 1800px) {
     table { font-size: 26px; }
     td, th { padding: 18px; }
@@ -178,7 +176,6 @@ function url(sheet, range){
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
-
 async function loadTable(sheet, range, title, token){
   const res = await fetch(url(sheet, range));
   const text = await res.text();
@@ -187,19 +184,19 @@ async function loadTable(sheet, range, title, token){
   let rows = parseCSV(text);
   if(!rows.length) return null;
 
+  // SNARIAD = EXACT first row from sheet
   const snariad = rows[0].join(" ").trim();
 
-  const rawData = rows.slice(1);
-  const data = rawData.filter(r => r.some(c => c !== ""));
+  // DATA = everything below snariad
+  const data = rows.slice(1).filter(r => r.some(c => c !== ""));
 
+  // capture scores for gold
   const scores = data
     .map(r => parseFloat(r[1]))
     .filter(n => !isNaN(n))
     .sort((a,b) => b - a);
 
-  const top1 = scores[0];
-  const top2 = scores[1];
-  const top3 = scores[2];
+  const gold = scores[0];
 
   let html = `
     <div class="table-box">
@@ -223,17 +220,13 @@ async function loadTable(sheet, range, title, token){
             </tr>
   `;
 
+  // rows: [fio, score]
   data.forEach(r => {
     const fio = r[0] || "";
-    const scoreNum = parseFloat(r[1]);
-    const score = isNaN(scoreNum) ? "" : scoreNum;
+    const scoreVal = parseFloat(r[1]);
+    const score = isNaN(scoreVal) ? "" : scoreVal;
 
-    let cls = "";
-    if(!isNaN(scoreNum)){
-      if(scoreNum === top1) cls = "gold";
-      else if(scoreNum === top2) cls = "silver";
-      else if(scoreNum === top3) cls = "bronze";
-    }
+    const cls = (scoreVal === gold ? "gold" : "");
 
     html += `
       <tr class="${cls}">
@@ -253,7 +246,6 @@ async function loadTable(sheet, range, title, token){
   return html;
 }
 
-
 function renderPage(){
   container.innerHTML = "";
   const start = pageIndex * PAGE_SIZE;
@@ -264,7 +256,6 @@ function renderPage(){
   const total = Math.ceil(allTablesHTML.length / PAGE_SIZE);
   pageIndex = (pageIndex + 1) % total;
 }
-
 
 async function refreshTables(stream){
   const cfg = STREAMS[stream];
@@ -278,7 +269,6 @@ async function refreshTables(stream){
 
   if(token === requestToken) allTablesHTML = list;
 }
-
 
 async function renderStream(stream){
   const cfg = STREAMS[stream];
@@ -311,5 +301,6 @@ async function renderStream(stream){
 
 select.addEventListener("change", () => renderStream(select.value));
 </script>
+
 </body>
 </html>
