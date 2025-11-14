@@ -72,9 +72,18 @@
     background: #007bff;
     color: white;
     text-align: center;
-    padding: 12px;
+    padding: 10px;
     font-size: 18px;
     font-weight: 900;
+  }
+
+  .apparatus {
+    padding: 10px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
+    background: #eef4ff;
+    border-bottom: 1px solid #dce2e9;
   }
 
   .table-wrapper {
@@ -85,27 +94,34 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 16px;
     table-layout: fixed;
+    font-size: 16px;
   }
 
-  td, th {
+  th, td {
     border: 1px solid #dce2e9;
     text-align: center;
     padding: 10px;
     font-weight: 700;
   }
 
-  tbody tr:nth-child(odd) { background: #f7faff; }
+  th {
+    background: #e6ecf5;
+    font-size: 18px;
+  }
 
-  /* ONLY GOLD */
-  .gold { background: #ffe680 !important; font-weight: 900 !important; }
+  tbody tr:nth-child(even) td { background: #f8fafc; }
 
-  /* TV MODE */
+  .gold td {
+    background: #ffe680 !important;
+    font-weight: 900 !important;
+  }
+
   @media (min-width: 1800px) {
     table { font-size: 26px; }
-    td, th { padding: 18px; }
-    .table-title { font-size: 30px; }
+    th, td { padding: 18px; }
+    .table-title { font-size: 28px; }
+    .apparatus { font-size: 24px; }
   }
 
   @media (max-width: 900px) {
@@ -120,10 +136,9 @@
   <div class="header-title">
     <h1>ArtVin Cup</h1>
     <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
-         alt="logo"
+         alt="Логотип"
          onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
   </div>
-
   <select id="streamSelect" class="stream-select">
     <option value="" disabled selected>Выберите поток</option>
     <option value="1">поток 1</option>
@@ -169,116 +184,72 @@ function clean(text){
 }
 
 function parseCSV(text){
-  return text.trim().split("\n").map(l => l.split(",").map(clean));
+  return text
+    .trim()
+    .split(/\r?\n/)
+    .map(line => line.split(",").map(clean));
 }
 
-function url(sheet, range){
+function buildUrl(sheet, range){
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
 async function loadTable(sheet, range, title, token){
-  const res = await fetch(url(sheet, range));
+  const res = await fetch(buildUrl(sheet, range));
   const text = await res.text();
   if (token !== requestToken) return null;
 
-  let rows = parseCSV(text);
+  const rows = parseCSV(text);
   if (!rows.length) return null;
 
-  // ---------------------------
-  // 1) АВТО-ОПРЕДЕЛЕНИЕ СНАРЯДА
-  // ---------------------------
-  const firstRow = rows[0];
-  let snariad = "";
-
-  for (const cell of firstRow) {
-    if (cell.trim() !== "" && isNaN(parseFloat(cell))) {
-      snariad = cell.trim();
+  // 1) Снаряд — первая строка диапазона: берем первое непустое значение
+  let apparatus = "";
+  for (const cell of rows[0]) {
+    if (cell.trim() !== "") {
+      apparatus = cell.trim();
       break;
     }
   }
-  if (!snariad) snariad = "Снаряд";
+  if (!apparatus) apparatus = "Снаряд";
 
-  // ---------------------------
-  // 2) АВТО-ОПРЕДЕЛЕНИЕ СТРОКИ ФИО/ОЦЕНКА
-  // ---------------------------
-  let headerIndex = -1;
+  // 2) Шапка — вторая строка, но на табло фиксируем как «ФИО | Оценка»
+  // даже если в таблице другие подписи.
+  // rows[1] можно игнорировать, структура всё равно одинаковая.
+  const dataRows = rows.slice(2).filter(r => r.some(c => c.trim() !== ""));
 
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    if (r.length < 2) continue;
+  // 3) Ищем максимум по второй колонке (золото)
+  let maxScore = -Infinity;
+  dataRows.forEach(r => {
+    const val = parseFloat(r[1]);
+    if (!isNaN(val) && val > maxScore) maxScore = val;
+  });
 
-    const left = (r[0] || "").trim();
-    const right = (r[1] || "").trim();
-
-    const leftIsNumber = !isNaN(parseFloat(left)) && left !== "";
-
-    if (!leftIsNumber && right !== "") {
-      headerIndex = i;
-      break;
-    }
-  }
-
-  let headerRow = ["ФИО", "Оценка"];
-  if (headerIndex !== -1) headerRow = rows[headerIndex];
-
-  // ---------------------------
-  // 3) ПАРСИНГ ДАННЫХ НИЖЕ
-  // ---------------------------
-  const start = headerIndex !== -1 ? headerIndex + 1 : 2;
-  let data = [];
-
-  for (let i = start; i < rows.length; i++){
-    const r = rows[i];
-    if (!r || !r.length) continue;
-
-    const fio = r[0]?.trim() ?? "";
-    const score = r[1]?.trim() ?? "";
-
-    if (fio === "" && score === "") continue;
-
-    data.push([fio, score]);
-  }
-
-  // ---------------------------
-  // 4) Подсветка золота
-  // ---------------------------
-  const numbers = data.map(r => parseFloat(r[1])).filter(n => !isNaN(n));
-  const gold = numbers.length ? Math.max(...numbers) : null;
-
-  // ---------------------------
-  // 5) РЕНДЕР HTML
-  // ---------------------------
+  // 4) Рендер HTML
   let html = `
     <div class="table-box">
       <div class="table-title">${title}</div>
+      <div class="apparatus">${apparatus}</div>
       <div class="table-wrapper">
         <table>
+          <thead>
+            <tr>
+              <th>ФИО</th>
+              <th>Оценка</th>
+            </tr>
+          </thead>
           <tbody>
-
-            <tr>
-              <td colspan="2" style="
-                font-weight:900;
-                text-align:center;
-                font-size:20px;
-                background:#eef2f7;
-              ">${snariad}</td>
-            </tr>
-
-            <tr>
-              <td style="font-weight:900;">${headerRow[0] || "ФИО"}</td>
-              <td style="font-weight:900;">${headerRow[1] || "Оценка"}</td>
-            </tr>
   `;
 
-  data.forEach(r => {
-    const fio = r[0];
-    const s = parseFloat(r[1]);
-    const isGold = s === gold;
+  dataRows.forEach(r => {
+    const fio = r[0] || "";
+    const rawScore = r[1] || "";
+    const numScore = parseFloat(rawScore);
+    const isGold = !isNaN(numScore) && numScore === maxScore;
 
     html += `
       <tr class="${isGold ? "gold" : ""}">
         <td>${fio}</td>
-        <td>${r[1]}</td>
+        <td>${rawScore}</td>
       </tr>
     `;
   });
@@ -300,31 +271,38 @@ function renderPage(){
 
   slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
 
-  const total = Math.ceil(allTablesHTML.length / PAGE_SIZE);
-  pageIndex = (pageIndex + 1) % total;
+  const totalPages = Math.max(1, Math.ceil(allTablesHTML.length / PAGE_SIZE));
+  pageIndex = (pageIndex + 1) % totalPages;
 }
 
 async function refreshTables(stream){
   const cfg = STREAMS[stream];
+  if (!cfg) return;
   const token = requestToken;
   const list = [];
 
   for (let i = 0; i < cfg.ranges.length; i++){
-    const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-    if (html) list.push(html);
+    try {
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
+      if (html) list.push(html);
+    } catch (e) {
+      list.push(`<div class="table-box"><div class="table-title">Таблица ${i+1}</div><div style="padding:10px;text-align:center;color:#c00;">Ошибка загрузки</div></div>`);
+    }
   }
 
-  if (token === requestToken) allTablesHTML = list;
+  if (token === requestToken) {
+    allTablesHTML = list;
+  }
 }
 
 async function renderStream(stream){
   const cfg = STREAMS[stream];
   if (!cfg){
-    container.innerHTML = "Нет данных";
+    container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных для этого потока</p>";
     return;
   }
 
-  container.innerHTML = "Загрузка...";
+  container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
 
   if (intervalId) clearInterval(intervalId);
   if (refreshId) clearInterval(refreshId);
@@ -332,13 +310,19 @@ async function renderStream(stream){
   requestToken++;
   const token = requestToken;
 
-  allTablesHTML = [];
-
+  const list = [];
   for (let i = 0; i < cfg.ranges.length; i++){
-    const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-    if (html) allTablesHTML.push(html);
+    try {
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
+      if (html) list.push(html);
+    } catch (e) {
+      list.push(`<div class="table-box"><div class="table-title">Таблица ${i+1}</div><div style="padding:10px;text-align:center;color:#c00;">Ошибка загрузки</div></div>`);
+    }
   }
 
+  if (token !== requestToken) return;
+
+  allTablesHTML = list;
   pageIndex = 0;
   renderPage();
 
