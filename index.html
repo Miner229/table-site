@@ -43,7 +43,7 @@
     font-weight: 600;
   }
 
-  /* ----- КОНТЕЙНЕР ДЛЯ ТАБЛИЦ ----- */
+  /* ----- Главный контейнер ----- */
   main {
     position: absolute;
     top: 100px; bottom: 0; left: 0; right: 0;
@@ -51,65 +51,58 @@
     display: grid;
     gap: 12px;
     box-sizing: border-box;
-    grid-template-columns: repeat(2, 1fr); /* 2 таблицы в ряду */
+    grid-template-columns: repeat(2, 1fr);
   }
 
-  /* ----- БЛОК ТАБЛИЦЫ ----- */
+  /* ----- Таблица ----- */
   .table-box {
     background: #fff;
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: 0 3px 12px rgba(0,0,0,0.12);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    height: 100%; /* таблица занимает всё пространство блока */
+    height: 100%;
   }
 
   .table-title {
     background: #007bff;
     color: #fff;
     text-align: center;
-    padding: 10px;
-    font-size: 17px;
-    font-weight: 800;
+    padding: 12px;
+    font-size: 18px;
+    font-weight: 900;
   }
 
-  /* ----- ОБЁРТКА ДЛЯ ТАБЛИЦЫ ----- */
   .table-wrapper {
     flex: 1;
-    overflow: hidden; /* скролл отключён — растянем строки */
+    overflow: hidden;
     display: flex;
   }
 
-  /* ----- ГЛАВНАЯ МАГИЯ РАСТЯЖЕНИЯ ----- */
+  /* ----- Главное растяжение ----- */
   table {
     width: 100%;
-    height: 100%;
     border-collapse: collapse;
     font-size: 16px;
     table-layout: fixed;
-
-    display: grid; /* превращаем таблицу в сетку */
-    grid-template-rows: auto 1fr; /* заголовок фиксированный, строки растянуты */
+    display: flex;
+    flex-direction: column;
+    flex: 1;
   }
 
-  thead, tbody {
-    display: contents; /* разрешаем grid управлять строками */
-  }
-
-  tbody tr {
-    display: grid;
-    grid-template-columns: 1fr 0.4fr; /* колонка ФИО / колонка оценка */
-    align-items: center;
-  }
-
-  tbody tr {
-    height: auto;
+  thead {
+    flex-shrink: 0;
   }
 
   tbody {
-    display: grid;
-    grid-auto-rows: 1fr; /* РАВНОМЕРНОЕ РАСТЯЖЕНИЕ СТРОК */
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  tbody tr {
+    flex: 1; /* Растягивание строк */
+    display: flex;
   }
 
   th, td {
@@ -117,174 +110,182 @@
     text-align: center;
     padding: 10px;
     font-weight: 700;
-  }
-
-  th {
-    background: #eef2f7;
-    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   td {
     font-size: 16px;
   }
 
-  tr:nth-child(even) { background: #f7faff; }
+  th {
+    background: #eef2f7;
+    font-size: 17px;
+  }
 
-  /* ----- АДАПТАЦИЯ ПОД ТЕЛЕФОН ----- */
+  tbody tr:nth-child(even) {
+    background: #f7faff;
+  }
+
+  td:first-child {
+    width: 70%;
+  }
+
+  td:last-child {
+    width: 30%;
+  }
+
   @media (max-width: 900px) {
     main { grid-template-columns: 1fr; }
   }
-
 </style>
 </head>
 <body>
-  <header>
-    <div class="header-title">
-      <h1>ArtVin Cup</h1>
-      <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
-           alt="Логотип"
-           onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
-    </div>
-    <select id="streamSelect" class="stream-select">
-      <option value="" disabled selected>Выберите поток</option>
-      <option value="1">поток 1</option>
-      <option value="2">поток 2</option>
-      <option value="3">поток 3</option>
-      <option value="4">поток 4</option>
-      <option value="5">поток 5</option>
-      <option value="6">поток 6</option>
-      <option value="7">поток 7</option>
-    </select>
-  </header>
 
-  <main id="tables"></main>
+<header>
+  <div class="header-title">
+    <h1>ArtVin Cup</h1>
+    <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
+         onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
+  </div>
+  <select id="streamSelect" class="stream-select">
+    <option value="" disabled selected>Выберите поток</option>
+    <option value="1">поток 1</option>
+    <option value="2">поток 2</option>
+    <option value="3">поток 3</option>
+    <option value="4">поток 4</option>
+    <option value="5">поток 5</option>
+    <option value="6">поток 6</option>
+    <option value="7">поток 7</option>
+  </select>
+</header>
 
-  <script>
-    const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
-    const STREAMS = {
-      1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
-      2: { sheet: "поток 2", ranges: ["A3:B15","D3:E15","G3:H14","A17:B28","D17:E26","G17:H26"] },
-      3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
-      4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
-      5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E26"] },
-      6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
-      7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
-    };
+<main id="tables"></main>
 
-    const container = document.getElementById("tables");
-    const select = document.getElementById("streamSelect");
+<script>
+  const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
+  const STREAMS = {
+    1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
+    2: { sheet: "поток 2", ranges: ["A3:B15","D3:E15","G3:H14","A17:B28","D17:E26","G17:H26"] },
+    3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
+    4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
+    5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E26"] },
+    6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
+    7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
+  };
 
-    let allTablesHTML = [];
-    let pageIndex = 0;
-    let intervalId = null;
-    let refreshId = null;
-    let requestToken = 0;
+  const container = document.getElementById("tables");
+  const select = document.getElementById("streamSelect");
 
-    const PAGE_SIZE = 2;
-    const ROTATE_MS = 20000;
-    const REFRESH_MS = 20000;
+  let allTablesHTML = [];
+  let pageIndex = 0;
+  let intervalId = null;
+  let refreshId = null;
+  let requestToken = 0;
 
-    function buildUrl(sheet, range) {
-      return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
+  const PAGE_SIZE = 2;
+  const ROTATE_MS = 20000;
+  const REFRESH_MS = 20000;
+
+  function clean(t) { return t.replace(/^"+|"+$/g, "").replace(/""/g,'"').trim(); }
+
+  function parseCSV(text) {
+    return text
+      .trim()
+      .split("\n")
+      .map(l => l.split(",").map(clean))
+      .filter(r => r.some(c => c !== ""));
+  }
+
+  function buildUrl(sheet, range) {
+    return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
+  }
+
+  async function loadTable(sheet, range, title, token) {
+    const res = await fetch(buildUrl(sheet, range));
+    const text = await res.text();
+    if (token !== requestToken) return null;
+
+    const rows = parseCSV(text);
+    if (!rows.length) return `<div class="table-box"><div class="table-title">${title}</div></div>`;
+
+    let apparatus = "";
+    let headerIndex = 0;
+    if (rows[0].filter(c => c !== "").length === 1) {
+      apparatus = rows[0][0];
+      headerIndex = 1;
     }
 
-    function clean(t) {
-      return t.replace(/^"+|"+$/g, "").replace(/""/g, '"').trim();
+    let html = `
+      <div class="table-box">
+        <div class="table-title">${title}${ apparatus ? `<div style='font-size:13px;color:#dce6f7;'>${apparatus}</div>` : ""}</div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr>`;
+
+    rows[headerIndex].forEach(h => html += `<th>${h}</th>`);
+    html += `</tr></thead><tbody>`;
+
+    for (let i = headerIndex + 1; i < rows.length; i++) {
+      html += `<tr>${rows[i].map(c => `<td>${c}</td>`).join("")}</tr>`;
     }
 
-    function parseCSV(text) {
-      const lines = text.trim().split("\n").map(l => l.split(",").map(clean));
-      return lines.filter(r => r.some(c => c !== ""));
+    html += `</tbody></table></div></div>`;
+    return html;
+  }
+
+  function renderPage() {
+    if (!allTablesHTML.length) return;
+    container.innerHTML = "";
+
+    const start = pageIndex * PAGE_SIZE;
+    const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
+
+    slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
+    pageIndex = (pageIndex + 1) % Math.ceil(allTablesHTML.length / PAGE_SIZE);
+  }
+
+  async function refreshTables(key) {
+    const cfg = STREAMS[key];
+    if (!cfg) return;
+
+    const token = requestToken;
+    const newTables = [];
+
+    for (let i = 0; i < cfg.ranges.length; i++) {
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
+      if (html) newTables.push(html);
     }
 
-    async function loadTable(sheet, range, title, token) {
-      const res = await fetch(buildUrl(sheet, range));
-      const text = await res.text();
-      if (token !== requestToken) return null;
+    if (token === requestToken) allTablesHTML = newTables;
+  }
 
-      const rows = parseCSV(text);
-      if (!rows.length)
-        return `<div class="table-box"><div class="table-title">${title}</div></div>`;
+  async function renderStream(key) {
+    container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
 
-      let apparatus = "";
-      let headerIndex = 0;
+    if (intervalId) clearInterval(intervalId);
+    if (refreshId) clearInterval(refreshId);
 
-      if (rows[0].filter(c => c !== "").length === 1) {
-        apparatus = rows[0][0];
-        headerIndex = 1;
-      }
+    requestToken++;
 
-      let html = `
-        <div class="table-box">
-          <div class="table-title">
-            ${title}
-            ${apparatus ? `<div style='font-size:13px;color:#dce6f7;'>${apparatus}</div>` : ""}
-          </div>
-          <div class="table-wrapper">
-            <table>
-              <thead><tr>`;
+    allTablesHTML = [];
+    const cfg = STREAMS[key];
 
-      rows[headerIndex].forEach(h => html += `<th>${h}</th>`);
-      html += `</tr></thead><tbody>`;
-
-      for (let i = headerIndex + 1; i < rows.length; i++) {
-        html += "<tr>" + rows[i].map(c => `<td>${c}</td>`).join("") + "</tr>";
-      }
-
-      html += `</tbody></table></div></div>`;
-      return html;
+    for (let i = 0; i < cfg.ranges.length; i++) {
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, requestToken);
+      allTablesHTML.push(html);
     }
 
-    function renderPage() {
-      if (!allTablesHTML.length) return;
+    pageIndex = 0;
+    renderPage();
 
-      container.innerHTML = "";
-      const start = pageIndex * PAGE_SIZE;
-      const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
+    intervalId = setInterval(renderPage, ROTATE_MS);
+    refreshId = setInterval(() => refreshTables(key), REFRESH_MS);
+  }
 
-      container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 2)}, 1fr)`;
-      slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
-
-      pageIndex = (pageIndex + 1) % Math.ceil(allTablesHTML.length / PAGE_SIZE);
-    }
-
-    async function refreshTables(key) {
-      const cfg = STREAMS[key];
-      if (!cfg) return;
-      const token = requestToken;
-
-      const newTables = [];
-      for (let i = 0; i < cfg.ranges.length; i++) {
-        const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
-        if (html) newTables.push(html);
-      }
-      if (token === requestToken) allTablesHTML = newTables;
-    }
-
-    async function renderStream(key) {
-      const cfg = STREAMS[key];
-      container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
-
-      if (intervalId) clearInterval(intervalId);
-      if (refreshId) clearInterval(refreshId);
-
-      requestToken++;
-
-      allTablesHTML = [];
-      for (let i = 0; i < cfg.ranges.length; i++) {
-        const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, requestToken);
-        allTablesHTML.push(html);
-      }
-
-      pageIndex = 0;
-      renderPage();
-
-      intervalId = setInterval(renderPage, ROTATE_MS);
-      refreshId = setInterval(() => refreshTables(key), REFRESH_MS);
-    }
-
-    select.addEventListener("change", () => renderStream(select.value));
-  </script>
+  select.addEventListener("change", () => renderStream(select.value));
+</script>
 
 </body>
 </html>
