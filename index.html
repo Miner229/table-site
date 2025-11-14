@@ -184,13 +184,20 @@ async function loadTable(sheet, range, title, token){
   let rows = parseCSV(text);
   if(!rows.length) return null;
 
-  // SNARIAD = EXACT first row from sheet
-  const snariad = rows[0].join(" ").trim();
+  // ----------------------------
+  //     FIX SNARIAD PROBLEM
+  // ----------------------------
 
-  // DATA = everything below snariad
-  const data = rows.slice(1).filter(r => r.some(c => c !== ""));
+  const firstRow = rows[0];
+  const snariad = firstRow.find(c => c.trim() !== "") || "";
 
-  // capture scores for gold
+  // ФИО / Оценка — всегда из второй строки
+  const headerRow = rows[1] || ["ФИО", "Оценка"];
+
+  // Данные — всё, что ниже
+  const data = rows.slice(2).filter(r => r.some(c => c !== ""));
+
+  // Gold
   const scores = data
     .map(r => parseFloat(r[1]))
     .filter(n => !isNaN(n))
@@ -198,6 +205,9 @@ async function loadTable(sheet, range, title, token){
 
   const gold = scores[0];
 
+  // ----------------------
+  //     HTML РЕНДЕР
+  // ----------------------
   let html = `
     <div class="table-box">
       <div class="table-title">${title}</div>
@@ -215,12 +225,11 @@ async function loadTable(sheet, range, title, token){
             </tr>
 
             <tr>
-              <td style="font-weight:900;">ФИО</td>
-              <td style="font-weight:900;">Оценка</td>
+              <td style="font-weight:900;">${headerRow[0] || "ФИО"}</td>
+              <td style="font-weight:900;">${headerRow[1] || "Оценка"}</td>
             </tr>
   `;
 
-  // rows: [fio, score]
   data.forEach(r => {
     const fio = r[0] || "";
     const scoreVal = parseFloat(r[1]);
