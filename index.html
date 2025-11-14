@@ -95,19 +95,19 @@
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 18px;
+    font-size: 16px;
   }
 
   th, td {
     border: 1px solid #dce2e9;
     text-align: center;
-    padding: 14px;
+    padding: 10px;
     font-weight: 700;
   }
 
   th {
     background: #e6ecf5;
-    font-size: 20px;
+    font-size: 18px;
   }
 
   tbody tr:nth-child(even) td { background: #f8fafc; }
@@ -115,13 +115,6 @@
   .gold td {
     background: #ffe680 !important;
     font-weight: 900 !important;
-  }
-
-  @media (min-width: 1800px) {
-    table { font-size: 28px; }
-    th, td { padding: 20px; }
-    .table-title { font-size: 30px; }
-    .apparatus { font-size: 26px; }
   }
 
   @media (max-width: 900px) {
@@ -158,7 +151,7 @@ const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
 const STREAMS = {
   1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
-  2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A18:B29","D17:E26","G17:H26"] },
+  2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A18:B29","D17:E27","G17:H26"] },
   3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
   4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
   5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E27"] },
@@ -194,16 +187,6 @@ function buildUrl(sheet, range){
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
-// --- проверка, что строка = нормальное число ---
-function isNumeric(value){
-  return /^-?\d+(\.\d+)?$/.test(value);
-}
-
-/*
------------------------------------------
-НОВАЯ СИСТЕМА ОПРЕДЕЛЕНИЯ СНАРЯДА + БЕТОН
------------------------------------------
-*/
 async function loadTable(sheet, range, title, token){
   const res = await fetch(buildUrl(sheet, range));
   const text = await res.text();
@@ -212,55 +195,26 @@ async function loadTable(sheet, range, title, token){
   const rows = parseCSV(text);
   if (!rows.length) return null;
 
-  // слова, которые мы НЕ считаем снарядом
-  const badWords = ["фио", "оценка", "баға", "аты-жөні", "аты жөні"];
-
-  let apparatus = "";
-  let headerRowIndex = -1;
-
-  for (let i = 0; i < rows.length; i++){
-    let rowText = rows[i].join(" ").trim().toLowerCase();
-
-    if (!rowText) continue;
-
-    let bad = false;
-    for (let w of badWords){
-      if (rowText.includes(w)) { bad = true; break; }
-    }
-    if (bad){
-      headerRowIndex = i;
-      continue;
-    }
-
-    apparatus = rows[i].join(" ").trim();
-    headerRowIndex = i + 1;
-    break;
-  }
-
-  if (!apparatus) apparatus = "Снаряд";
+  // Снаряд — всегда rows[0][0]
+  const apparatus = rows[0][0] || "Снаряд";
 
   const participants = [];
-  for (let i = headerRowIndex + 1; i < rows.length; i++){
-    const row = rows[i];
-    if (!row) continue;
 
-    let fio = row[0] ? row[0].trim() : "";
-    let scoreRaw = row.length > 1 ? row[1].trim() : "";
+  // rows[1] — это ФИО | Оценка → пропускаем
+  for (let i = 2; i < rows.length; i++){
+    const fio = rows[i][0] || "";
+    const score = rows[i][1] || "";
 
-    if (!fio && !scoreRaw) continue;
+    if (!fio.trim() && !score.trim()) continue;
 
-    let score = scoreRaw;
-
-    participants.push([fio, score]);
+    participants.push([fio.trim(), score.trim()]);
   }
 
-  // золото — только по числам
-  let maxScore = -Infinity;
-  participants.forEach(([fio, score]) => {
-    if (isNumeric(score)){
-      const n = parseFloat(score);
-      if (n > maxScore) maxScore = n;
-    }
+  // Золото
+  let max = -Infinity;
+  participants.forEach(([fio,score]) => {
+    const v = parseFloat(score);
+    if (!isNaN(v) && v > max) max = v;
   });
 
   let html = `
@@ -270,18 +224,16 @@ async function loadTable(sheet, range, title, token){
       <div class="table-wrapper">
         <table>
           <thead>
-            <tr>
-              <th>ФИО</th>
-              <th>Оценка</th>
-            </tr>
+            <tr><th>ФИО</th><th>Оценка</th></tr>
           </thead>
           <tbody>
   `;
 
-  participants.forEach(([fio, score])=>{
-    const isGold = isNumeric(score) && parseFloat(score) === maxScore;
+  participants.forEach(([fio, score]) => {
+    const v = parseFloat(score);
+    const gold = (!isNaN(v) && v === max) ? "gold" : "";
     html += `
-      <tr class="${isGold ? "gold" : ""}">
+      <tr class="${gold}">
         <td>${fio}</td>
         <td>${score}</td>
       </tr>
@@ -313,28 +265,30 @@ async function refreshTables(stream){
   const cfg = STREAMS[stream];
   if (!cfg) return;
   const token = requestToken;
-  const list = [];
 
+  const list = [];
   for (let i = 0; i < cfg.ranges.length; i++){
-    try {
+    try{
       const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-      list.push(html);
-    } catch {
+      if (html) list.push(html);
+    } catch{
       list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
     }
   }
 
-  if (token === requestToken) allTablesHTML = list;
+  if (token === requestToken){
+    allTablesHTML = list;
+  }
 }
 
 async function renderStream(stream){
   const cfg = STREAMS[stream];
   if (!cfg){
-    container.innerHTML = "<p style='text-align:center;color:red;'>Нет данных</p>";
+    container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных</p>";
     return;
   }
 
-  container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
+  container.innerHTML = "<p style='text-align:center;color:#777;'>Загрузка…</p>";
 
   if (intervalId) clearInterval(intervalId);
   if (refreshId) clearInterval(refreshId);
@@ -343,12 +297,11 @@ async function renderStream(stream){
   const token = requestToken;
 
   const list = [];
-
   for (let i = 0; i < cfg.ranges.length; i++){
-    try {
+    try{
       const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-      list.push(html);
-    } catch {
+      if (html) list.push(html);
+    } catch{
       list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
     }
   }
