@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ArtVin Cup</title>
+
 <style>
   html, body {
     margin: 0;
@@ -19,7 +20,7 @@
     top: 0; left: 0; right: 0;
     height: 100px;
     background: #0069d9;
-    color: #fff;
+    color: white;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -30,12 +31,23 @@
 
   .header-title { display: flex; align-items: center; gap: 15px; }
   header h1 { margin: 0; font-size: 26px; font-weight: 800; }
-  .header-title img { height: 80px; border-radius: 6px; background: #fff; padding: 4px; }
+
+  .header-title img {
+    height: 80px;
+    border-radius: 6px;
+    background: white;
+    padding: 4px;
+  }
 
   .stream-select {
-    font-size: 16px; padding: 8px 14px; border: none;
-    border-radius: 6px; color: #007bff; background: #fff;
-    cursor: pointer; font-weight: 600;
+    font-size: 16px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    color: #007bff;
+    background: white;
+    cursor: pointer;
+    font-weight: 600;
   }
 
   main {
@@ -49,17 +61,16 @@
   }
 
   .table-box {
-    background: #fff;
+    background: white;
     border-radius: 12px;
     box-shadow: 0 3px 12px rgba(0,0,0,0.12);
     display: flex;
     flex-direction: column;
-    height: 100%;
   }
 
   .table-title {
     background: #007bff;
-    color: #fff;
+    color: white;
     text-align: center;
     padding: 12px;
     font-size: 18px;
@@ -78,7 +89,7 @@
     table-layout: fixed;
   }
 
-  td {
+  td, th {
     border: 1px solid #dce2e9;
     text-align: center;
     padding: 10px;
@@ -86,9 +97,17 @@
   }
 
   tbody tr:nth-child(odd) { background: #f7faff; }
-  tbody tr:first-child {
-    background: #eef2f7;
-    font-weight: 900;
+
+  /* TOP 3 PODIUM */
+  .gold   { background: #ffe680 !important; font-weight: 900 !important; }
+  .silver { background: #e6e6e6 !important; font-weight: 900 !important; }
+  .bronze { background: #f2c199 !important; font-weight: 900 !important; }
+
+  /* TV MODE (авто-масштабирование на большие экраны) */
+  @media (min-width: 1800px) {
+    table { font-size: 26px; }
+    td, th { padding: 18px; }
+    .table-title { font-size: 30px; }
   }
 
   @media (max-width: 900px) {
@@ -96,15 +115,17 @@
   }
 </style>
 </head>
+
 <body>
 
 <header>
   <div class="header-title">
     <h1>ArtVin Cup</h1>
     <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
-         alt="Логотип"
+         alt="logo"
          onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
   </div>
+
   <select id="streamSelect" class="stream-select">
     <option value="" disabled selected>Выберите поток</option>
     <option value="1">поток 1</option>
@@ -120,161 +141,175 @@
 <main id="tables"></main>
 
 <script>
-  const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
+const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
-  const STREAMS = {
-    1: { sheet: "поток 1", ranges: ["A1:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
-    2: { sheet: "поток 2", ranges: ["A3:B15","D3:E15","G3:H14","A17:B28","D17:E26","G17:H26"] },
-    3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
-    4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
-    5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E26"] },
-    6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
-    7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
-  };
+const STREAMS = {
+  1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
+  2: { sheet: "поток 2", ranges: ["A3:B15","D3:E15","G3:H14","A17:B28","D17:E26","G17:H26"] },
+  3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
+  4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
+  5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E26"] },
+  6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
+  7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
+};
 
-  const container = document.getElementById("tables");
-  const select = document.getElementById("streamSelect");
+const container = document.getElementById("tables");
+const select = document.getElementById("streamSelect");
 
-  let allTablesHTML = [];
-  let pageIndex = 0;
-  let intervalId = null;
-  let refreshId = null;
-  let requestToken = 0;
+let allTablesHTML = [];
+let pageIndex = 0;
+let intervalId = null;
+let refreshId = null;
+let requestToken = 0;
 
-  const PAGE_SIZE = 2;
-  const ROTATE_MS = 20000;
-  const REFRESH_MS = 20000;
+const PAGE_SIZE = 2;
+const ROTATE_MS = 20000;
+const REFRESH_MS = 20000;
 
-  function buildUrl(sheet, range) {
-    return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
-  }
+function clean(text){
+  return text.replace(/^"+|"+$/g,"").replace(/""/g,'"').trim();
+}
 
-  function cleanCell(text) {
-    return text.replace(/^"+|"+$/g, "").replace(/""/g, '"').trim();
-  }
+function parseCSV(text){
+  return text.trim().split("\n").map(l => l.split(",").map(clean));
+}
 
-  function parseCSV(text) {
-    return text.trim().split("\n").map(line =>
-      line.split(",").map(cleanCell)
-    );
-  }
+function url(sheet, range){
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
+}
 
-  async function loadTable(sheet, range, title, token) {
-    const res = await fetch(buildUrl(sheet, range));
-    const text = await res.text();
-    if (token !== requestToken) return null;
 
-    const rows = parseCSV(text);
-    if (!rows.length) {
-      return `
-        <div class="table-box">
-          <div class="table-title">${title}</div>
-          <div class="table-wrapper"><table><tbody>
-            <tr><td>Пусто</td></tr>
-          </tbody></table></div>
-        </div>`;
+async function loadTable(sheet, range, title, token){
+  const res = await fetch(url(sheet, range));
+  const text = await res.text();
+  if(token !== requestToken) return null;
+
+  let rows = parseCSV(text);
+  if(!rows.length) return null;
+
+  const snariad = rows[0].join(" ").trim();
+
+  const rawData = rows.slice(1);
+  const data = rawData.filter(r => r.some(c => c !== ""));
+
+  const scores = data
+    .map(r => parseFloat(r[1]))
+    .filter(n => !isNaN(n))
+    .sort((a,b) => b - a);
+
+  const top1 = scores[0];
+  const top2 = scores[1];
+  const top3 = scores[2];
+
+  let html = `
+    <div class="table-box">
+      <div class="table-title">${title}</div>
+      <div class="table-wrapper">
+        <table>
+          <tbody>
+
+            <tr>
+              <td colspan="2" style="
+                font-weight:900;
+                text-align:center;
+                font-size:20px;
+                background:#eef2f7;
+              ">${snariad}</td>
+            </tr>
+
+            <tr>
+              <td style="font-weight:900;">ФИО</td>
+              <td style="font-weight:900;">Оценка</td>
+            </tr>
+  `;
+
+  data.forEach(r => {
+    const fio = r[0] || "";
+    const scoreNum = parseFloat(r[1]);
+    const score = isNaN(scoreNum) ? "" : scoreNum;
+
+    let cls = "";
+    if(!isNaN(scoreNum)){
+      if(scoreNum === top1) cls = "gold";
+      else if(scoreNum === top2) cls = "silver";
+      else if(scoreNum === top3) cls = "bronze";
     }
-
-    let html = `
-      <div class="table-box">
-        <div class="table-title">${title}</div>
-        <div class="table-wrapper">
-          <table><tbody>`;
-
-    rows.forEach((row, index) => {
-      const nonEmpty = row.filter(c => c.trim() !== "");
-
-      // 🔥 Автоматическое объединение первой строки (название снаряда)
-      if (index === 0 && nonEmpty.length === 1) {
-        html += `
-          <tr>
-            <td colspan="${row.length}"
-                style="
-                  font-weight:900;
-                  text-align:center;
-                  font-size:20px;
-                  background:#eef2f7;
-                ">
-              ${nonEmpty[0]}
-            </td>
-          </tr>`;
-      } else {
-        html += "<tr>";
-        row.forEach(cell => {
-          html += `<td>${cell}</td>`;
-        });
-        html += "</tr>";
-      }
-    });
 
     html += `
-          </tbody></table>
-        </div>
-      </div>`;
+      <tr class="${cls}">
+        <td>${fio}</td>
+        <td>${score}</td>
+      </tr>
+    `;
+  });
 
-    return html;
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  return html;
+}
+
+
+function renderPage(){
+  container.innerHTML = "";
+  const start = pageIndex * PAGE_SIZE;
+  const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
+
+  slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
+
+  const total = Math.ceil(allTablesHTML.length / PAGE_SIZE);
+  pageIndex = (pageIndex + 1) % total;
+}
+
+
+async function refreshTables(stream){
+  const cfg = STREAMS[stream];
+  const token = requestToken;
+  const list = [];
+
+  for(let i=0;i<cfg.ranges.length;i++){
+    const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
+    if(html) list.push(html);
   }
 
-  function renderPage() {
-    if (!allTablesHTML.length) return;
+  if(token === requestToken) allTablesHTML = list;
+}
 
-    container.innerHTML = "";
-    const start = pageIndex * PAGE_SIZE;
-    const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
 
-    slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
-
-    const totalPages = Math.ceil(allTablesHTML.length / PAGE_SIZE);
-    pageIndex = (pageIndex + 1) % totalPages;
+async function renderStream(stream){
+  const cfg = STREAMS[stream];
+  if(!cfg){
+    container.innerHTML = "Нет данных";
+    return;
   }
 
-  async function refreshTables(streamKey) {
-    const cfg = STREAMS[streamKey];
-    if (!cfg) return;
+  container.innerHTML = "Загрузка...";
 
-    const token = requestToken;
-    const updated = [];
+  if(intervalId) clearInterval(intervalId);
+  if(refreshId) clearInterval(refreshId);
 
-    for (let i = 0; i < cfg.ranges.length; i++) {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-      if (html) updated.push(html);
-    }
+  requestToken++;
+  const token = requestToken;
 
-    if (token === requestToken) {
-      allTablesHTML = updated;
-    }
+  allTablesHTML = [];
+
+  for(let i=0;i<cfg.ranges.length;i++){
+    const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
+    if(html) allTablesHTML.push(html);
   }
 
-  async function renderStream(streamKey) {
-    const cfg = STREAMS[streamKey];
-    if (!cfg) {
-      container.innerHTML = "<p style='text-align:center;color:red;'>Нет данных</p>";
-      return;
-    }
+  pageIndex = 0;
+  renderPage();
 
-    container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
+  intervalId = setInterval(renderPage, ROTATE_MS);
+  refreshId = setInterval(() => refreshTables(stream), REFRESH_MS);
+}
 
-    if (intervalId) clearInterval(intervalId);
-    if (refreshId) clearInterval(refreshId);
-
-    requestToken++;
-    const token = requestToken;
-    allTablesHTML = [];
-
-    for (let i = 0; i < cfg.ranges.length; i++) {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-      if (html) allTablesHTML.push(html);
-    }
-
-    pageIndex = 0;
-    renderPage();
-
-    intervalId = setInterval(renderPage, ROTATE_MS);
-    refreshId = setInterval(() => refreshTables(streamKey), REFRESH_MS);
-  }
-
-  select.addEventListener("change", () => renderStream(select.value));
+select.addEventListener("change", () => renderStream(select.value));
 </script>
-
 </body>
 </html>
