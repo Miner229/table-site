@@ -179,35 +179,75 @@ function url(sheet, range){
 async function loadTable(sheet, range, title, token){
   const res = await fetch(url(sheet, range));
   const text = await res.text();
-  if(token !== requestToken) return null;
+  if (token !== requestToken) return null;
 
   let rows = parseCSV(text);
-  if(!rows.length) return null;
+  if (!rows.length) return null;
 
-  // ----------------------------
-  //     FIX SNARIAD PROBLEM
-  // ----------------------------
-
+  // ---------------------------
+  // 1) АВТО-ОПРЕДЕЛЕНИЕ СНАРЯДА
+  // ---------------------------
   const firstRow = rows[0];
-  const snariad = firstRow.find(c => c.trim() !== "") || "";
+  let snariad = "";
 
-  // ФИО / Оценка — всегда из второй строки
-  const headerRow = rows[1] || ["ФИО", "Оценка"];
+  for (const cell of firstRow) {
+    if (cell.trim() !== "" && isNaN(parseFloat(cell))) {
+      snariad = cell.trim();
+      break;
+    }
+  }
+  if (!snariad) snariad = "Снаряд";
 
-  // Данные — всё, что ниже
-  const data = rows.slice(2).filter(r => r.some(c => c !== ""));
+  // ---------------------------
+  // 2) АВТО-ОПРЕДЕЛЕНИЕ СТРОКИ ФИО/ОЦЕНКА
+  // ---------------------------
+  let headerIndex = -1;
 
-  // Gold
-  const scores = data
-    .map(r => parseFloat(r[1]))
-    .filter(n => !isNaN(n))
-    .sort((a,b) => b - a);
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.length < 2) continue;
 
-  const gold = scores[0];
+    const left = (r[0] || "").trim();
+    const right = (r[1] || "").trim();
 
-  // ----------------------
-  //     HTML РЕНДЕР
-  // ----------------------
+    const leftIsNumber = !isNaN(parseFloat(left)) && left !== "";
+
+    if (!leftIsNumber && right !== "") {
+      headerIndex = i;
+      break;
+    }
+  }
+
+  let headerRow = ["ФИО", "Оценка"];
+  if (headerIndex !== -1) headerRow = rows[headerIndex];
+
+  // ---------------------------
+  // 3) ПАРСИНГ ДАННЫХ НИЖЕ
+  // ---------------------------
+  const start = headerIndex !== -1 ? headerIndex + 1 : 2;
+  let data = [];
+
+  for (let i = start; i < rows.length; i++){
+    const r = rows[i];
+    if (!r || !r.length) continue;
+
+    const fio = r[0]?.trim() ?? "";
+    const score = r[1]?.trim() ?? "";
+
+    if (fio === "" && score === "") continue;
+
+    data.push([fio, score]);
+  }
+
+  // ---------------------------
+  // 4) Подсветка золота
+  // ---------------------------
+  const numbers = data.map(r => parseFloat(r[1])).filter(n => !isNaN(n));
+  const gold = numbers.length ? Math.max(...numbers) : null;
+
+  // ---------------------------
+  // 5) РЕНДЕР HTML
+  // ---------------------------
   let html = `
     <div class="table-box">
       <div class="table-title">${title}</div>
@@ -231,16 +271,14 @@ async function loadTable(sheet, range, title, token){
   `;
 
   data.forEach(r => {
-    const fio = r[0] || "";
-    const scoreVal = parseFloat(r[1]);
-    const score = isNaN(scoreVal) ? "" : scoreVal;
-
-    const cls = (scoreVal === gold ? "gold" : "");
+    const fio = r[0];
+    const s = parseFloat(r[1]);
+    const isGold = s === gold;
 
     html += `
-      <tr class="${cls}">
+      <tr class="${isGold ? "gold" : ""}">
         <td>${fio}</td>
-        <td>${score}</td>
+        <td>${r[1]}</td>
       </tr>
     `;
   });
@@ -271,34 +309,34 @@ async function refreshTables(stream){
   const token = requestToken;
   const list = [];
 
-  for(let i=0;i<cfg.ranges.length;i++){
+  for (let i = 0; i < cfg.ranges.length; i++){
     const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-    if(html) list.push(html);
+    if (html) list.push(html);
   }
 
-  if(token === requestToken) allTablesHTML = list;
+  if (token === requestToken) allTablesHTML = list;
 }
 
 async function renderStream(stream){
   const cfg = STREAMS[stream];
-  if(!cfg){
+  if (!cfg){
     container.innerHTML = "Нет данных";
     return;
   }
 
   container.innerHTML = "Загрузка...";
 
-  if(intervalId) clearInterval(intervalId);
-  if(refreshId) clearInterval(refreshId);
+  if (intervalId) clearInterval(intervalId);
+  if (refreshId) clearInterval(refreshId);
 
   requestToken++;
   const token = requestToken;
 
   allTablesHTML = [];
 
-  for(let i=0;i<cfg.ranges.length;i++){
+  for (let i = 0; i < cfg.ranges.length; i++){
     const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-    if(html) allTablesHTML.push(html);
+    if (html) allTablesHTML.push(html);
   }
 
   pageIndex = 0;
