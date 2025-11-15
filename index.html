@@ -6,6 +6,7 @@
 <title>ArtVin Cup</title>
 
 <style>
+/* Общие стили */
 body {
     margin: 0;
     background: #f7f9fb;
@@ -58,6 +59,7 @@ header {
     font-weight: 600;
 }
 
+/* Главный контейнер */
 main {
     position: absolute;
     top: 100px; bottom: 0; left: 0; right: 0;
@@ -68,15 +70,18 @@ main {
     gap: 14px;
 }
 
+/* Контейнер таблицы */
 .table-box {
+    display: flex;
+    flex-direction: column;
+    height: 90vh; /* почти весь экран */
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 3px 12px rgba(0,0,0,0.15);
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
 }
 
+/* Заголовок таблицы и аппарат */
 .table-title {
     background: #007bff;
     color: #fff;
@@ -95,24 +100,41 @@ main {
     border-bottom: 1px solid #dce2e9;
 }
 
+/* Таблица */
 table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed; /* фиксированная ширина ячеек */
+    table-layout: fixed;
+    flex: 1 1 auto; /* растягиваем таблицу по высоте контейнера */
+    display: flex;
+    flex-direction: column;
 }
 
-th, td {
+thead {
+    display: table-header-group; /* фиксируем заголовок */
+}
+
+tbody {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    justify-content: space-between; /* равномерно распределяем строки */
+}
+
+tbody tr {
+    display: flex;
+    flex: 1 1 auto; /* каждая строка занимает равную часть tbody */
+    align-items: center; /* вертикальное центрирование текста */
+}
+
+td, th {
+    flex: 1 1 50%; /* две колонки делят пространство поровну */
     border: 1px solid #dce2e9;
-    padding: 20px 14px; /* увеличиваем вертикальный padding */
     text-align: center;
-    font-size: 18px;
     font-weight: 700;
-    max-width: none; /* убираем ограничение ширины */
-    overflow-wrap: normal; /* убираем перенос слов */
-    white-space: nowrap; /* текст не переносится на новую строку */
+    font-size: 18px;
+    padding: 0; /* padding убран, чтобы строки растягивались */
 }
-
-
 
 th {
     background: #e6ecf5;
@@ -128,15 +150,15 @@ tbody tr:nth-child(even) td {
     font-weight: 900 !important;
 }
 
+/* Адаптация под мобильные устройства */
 @media (max-width: 900px) {
     main {
         grid-template-columns: 1fr;
-        padding: 10px;
+        padding: 5px;
     }
-    th, td { font-size: 16px; padding: 12px 8px; }
-    .apparatus { font-size: 16px; padding: 8px; }
+    td, th { font-size: 16px; }
+    .apparatus, .table-title { font-size: 16px; padding: 8px; }
 }
-
 </style>
 </head>
 
