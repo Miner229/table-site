@@ -129,25 +129,45 @@ tbody tr:nth-child(even) td {
     font-weight: 900 !important;
 }
 
+/* МОБИЛЬНАЯ ВЕРСИЯ — таблица в полный размер */
 @media (max-width: 900px) {
+
+    /* Одна таблица в ряд */
     main {
-        display: grid !important;
         grid-template-columns: 1fr !important;
-        gap: 14px !important;
+        gap: 20px !important;
+        padding: 10px !important;
+        overflow-y: auto !important;
     }
 
-    /* Таблица НЕ должна ломаться */
+    /* Таблица должна быть полной ширины */
+    .table-box {
+        width: 100% !important;
+    }
+
     table {
         width: 100% !important;
-        table-layout: fixed !important;
+        min-width: 100% !important;
+        table-layout: auto !important;
     }
 
+    /* Колонки не схлопываются, ФИО и оценка остаются нормальными */
     th, td {
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+        white-space: normal !important;
+        font-size: 16px !important;
+        padding: 10px 6px !important;
+    }
+
+    /* Чтобы если фамилия слишком длинная — она переносилась */
+    td {
+        word-break: break-word !important;
+    }
+
+    body {
+        overflow-y: auto !important;
     }
 }
+
 
 </style>
 </head>
