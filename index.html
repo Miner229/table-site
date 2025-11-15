@@ -256,14 +256,12 @@ async function loadTable(sheet, range, index, gen) {
                     <tbody>`;
 
     participants.forEach(row => {
-  const fio = (row[0] || "").trim();
+  const fio = (row[0] || "").trim() || "-";   // если ФИО пустое, ставим "-"
   let scoreText = (row[1] || "").trim();
 
-  // всегда отображаем строку, даже если scoreText пустой
   const num = parseScore(scoreText);
   const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
 
-  // если score пустой или не число — ставим "-"
   if (scoreText === "" || isNaN(num)) scoreText = "-";
 
   html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
