@@ -128,19 +128,27 @@ tbody tr:nth-child(even) td {
     background: #ffe680 !important;
     font-weight: 900 !important;
 }
-
-/* МОБИЛЬНАЯ ВЕРСИЯ — таблица в полный размер */
+/* Полный вертикальный скролл на телефонах */
 @media (max-width: 900px) {
 
-    /* Одна таблица в ряд */
-    main {
-        grid-template-columns: 1fr !important;
-        gap: 20px !important;
-        padding: 10px !important;
+    html, body {
+        height: auto !important;
         overflow-y: auto !important;
+        overflow-x: hidden !important;
     }
 
-    /* Таблица должна быть полной ширины */
+    /* главный контейнер тоже должен скроллиться */
+    main {
+        position: relative !important;
+        top: 100px;
+        bottom: auto;
+        height: auto !important;
+        overflow: visible !important;
+        grid-template-columns: 1fr !important;
+        padding-bottom: 40px;
+    }
+
+    /* таблицы занимают всю ширину, без обрезания */
     .table-box {
         width: 100% !important;
     }
@@ -151,22 +159,12 @@ tbody tr:nth-child(even) td {
         table-layout: auto !important;
     }
 
-    /* Колонки не схлопываются, ФИО и оценка остаются нормальными */
     th, td {
         white-space: normal !important;
-        font-size: 16px !important;
-        padding: 10px 6px !important;
-    }
-
-    /* Чтобы если фамилия слишком длинная — она переносилась */
-    td {
         word-break: break-word !important;
     }
-
-    body {
-        overflow-y: auto !important;
-    }
 }
+
 
 
 </style>
