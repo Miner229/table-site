@@ -251,12 +251,30 @@ tbody tr:nth-child(even) td {
       let participants = rows.slice(headerIndex + 1);
 
       // ищем максимальную оценку
-      let maxScore = -Infinity;
-      participants.forEach(r => {
-        const raw = (r[1] || "").replace(",", ".");
-        const num = parseFloat(raw);
-        if (!isNaN(num) && num > maxScore) maxScore = num;
-      });
+      // вычисляем maxScore один раз
+let maxScore = -Infinity;
+participants.forEach(r => {
+  const num = parseFloat((r[1] || "").replace(",", "."));
+  if (!isNaN(num) && num > maxScore) maxScore = num;
+});
+
+participants.forEach(row => {
+  const fio = (row[0] || "").trim();
+  let scoreText = (row[1] || "").trim();
+  const num = parseFloat(scoreText.replace(",", "."));
+
+  if (!fio) return; // пропускаем полностью пустые строки
+
+  if (isNaN(num)) scoreText = "-"; // пустые или некорректные значения
+
+  const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
+
+  html += `<tr class="${isGold ? "gold" : ""}">
+             <td>${fio}</td>
+             <td>${scoreText}</td>
+           </tr>`;
+});
+
 
       let html = `
         <div class="table-box">
@@ -270,28 +288,6 @@ tbody tr:nth-child(even) td {
               </tr>
             </thead>
             <tbody>
-      `;
-
-      participants.forEach(row => {
-        const fio = (row[0] || "").trim();
-        const scoreText = (row[1] || "").trim();
-        if (!fio && !scoreText) return;
-
-        const num = parseFloat(scoreText.replace(",", "."));
-        const isGold = !isNaN(num) && num === maxScore;
-
-        html += `
-          <tr class="${isGold ? "gold" : ""}">
-            <td>${fio}</td>
-            <td>${scoreText}</td>
-          </tr>
-        `;
-      });
-
-      html += `
-            </tbody>
-          </table>
-        </div>
       `;
 
       return html;
