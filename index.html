@@ -170,7 +170,6 @@ tbody tr:nth-child(even) td {
 function parseScore(value) {
     if (!value) return NaN;
 
-    // Удаляем ВСЕ возможные невидимые символы: NBSP, BOM, ZWSP, LRM, RLM, разделители строк и т.д.
     value = value
         .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")   // управляющие символы
         .replace(/[\u00A0\u1680\u180E\u2000-\u200F\u2028\u2029\u202F\u205F\u3000]/g, "") // невидимые пробелы
@@ -183,17 +182,48 @@ function parseScore(value) {
 }
 
 
-
 // ===============================
 //     CSV ПАРСЕР
 // ===============================
 function parseCSV(text) {
     return text.trim().split(/\r?\n/).map(line =>
-        line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v =>
-            v.replace(/^"+|"+$/g, "").trim()
-        )
+        line
+            .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+            .map(v => v.replace(/^"+|"+$/g, "").trim())
     );
 }
+
+
+// ===============================
+//     ПОИСК ЗАГОЛОВКА
+// ===============================
+function findHeaderIndex(rows) {
+    for (let i = 0; i < rows.length; i++) {
+        const col1 = rows[i][0]?.toLowerCase().replace(/\s+/g, "") || "";
+        const col2 = rows[i][1]?.toLowerCase().replace(/\s+/g, "") || "";
+
+        if (col1.includes("фио")) return i;
+        if (col2.includes("оценка") || col2.includes("балл")) return i;
+    }
+    return -1;
+}
+
+
+// ===============================
+//     ПОИСК СТРОКИ СНАРЯДА
+// ===============================
+function extractApparatus(rows, headerIndex) {
+    // если строка заголовка не первая → первая строка = снаряд
+    if (headerIndex > 0) {
+        const text = rows[0].join(" ")
+            .replace(/фио/gi, "")
+            .replace(/оценка/gi, "")
+            .trim();
+        if (text) return text;
+    }
+    return "";
+}
+
 
 const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
@@ -223,7 +253,7 @@ let loadGeneration = 0;
 
 
 // ===============================
-//   URL для получения CSV
+//     URL CSV
 // ===============================
 function buildCsvUrl(sheet, range) {
     return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
@@ -231,7 +261,7 @@ function buildCsvUrl(sheet, range) {
 
 
 // ===============================
-//     Загрузка одной таблицы
+//     Загрузка таблицы
 // ===============================
 async function loadTable(sheet, range, index, gen) {
     try {
@@ -241,44 +271,29 @@ async function loadTable(sheet, range, index, gen) {
         const text = await res.text();
         if (gen !== loadGeneration) return null;
 
-        const rawRows = parseCSV(text);
+        let rows = parseCSV(text);
 
-        // Не удаляем строки жёстко — чистим правильно ↓↓↓
-        const rows = rawRows.filter(r => !(r.length === 0 || r.every(c => c.trim() === "")));
+        rows = rows.filter(r => !(r.length === 0 || r.every(c => c.trim() === "")));
 
         if (!rows.length) throw new Error("Нет данных");
 
-        // Имя снаряда
-        let apparatusText = rows[0].join(" ").replace(/фио|оценка/gi, "").trim();
-        if (!apparatusText) apparatusText = "Снаряд";
+        const headerIndex = findHeaderIndex(rows);
+        const apparatusText = extractApparatus(rows, headerIndex) || "Снаряд";
 
-        // Поиск заголовков
-        let headerIndex = rows.findIndex(r => {
-            const a = r[0]?.toLowerCase()?.replace(/\s+/g,"");
-            const b = r[1]?.toLowerCase()?.replace(/\s+/g,"");
-            return a === "фио" && (b === "оценка" || b === "балл");
-        });
+        let hdr = headerIndex !== -1 ? rows[headerIndex] : ["ФИО", "Оценка"];
+        const nameHeader = hdr[0] || "ФИО";
+        const scoreHeader = hdr[1] || "Оценка";
 
-        if (headerIndex === -1) headerIndex = 1;
+        const participants = rows.slice(headerIndex + 1);
 
-        let headerRow = rows[headerIndex];
-        let nameHeader = headerRow[0] || "ФИО";
-        let scoreHeader = headerRow[1] || "Оценка";
-
-        let participants = rows.slice(headerIndex + 1);
-
-        // ===============================
-        //     Поиск максимального балла
-        // ===============================
+        // Ищем максимальную оценку
         let maxScore = -Infinity;
         participants.forEach(r => {
             const num = parseScore(r[1] || "");
             if (!isNaN(num) && num > maxScore) maxScore = num;
         });
 
-        // ===============================
-        //     Формирование HTML
-        // ===============================
+        // Формируем HTML
         let html = `<div class="table-box">
             <div class="table-title">Таблица ${index}</div>
             <div class="apparatus">${apparatusText}</div>
@@ -288,16 +303,15 @@ async function loadTable(sheet, range, index, gen) {
 
         participants.forEach(row => {
             const fio = (row[0] || "-").trim();
-            let rawScore = (row[1] || "").trim();
-
-            const num = parseScore(rawScore);
+            let score = (row[1] || "").trim();
+            const num = parseScore(score);
             const isGold = !isNaN(num) && Math.abs(num - maxScore) < 0.000001;
 
-            if (!rawScore || isNaN(num)) rawScore = "-";
+            if (!score || isNaN(num)) score = "-";
 
             html += `<tr class="${isGold ? "gold" : ""}">
                         <td>${fio}</td>
-                        <td>${rawScore}</td>
+                        <td>${score}</td>
                     </tr>`;
         });
 
@@ -314,21 +328,19 @@ async function loadTable(sheet, range, index, gen) {
 
 
 // ===============================
-//     Отрисовка страниц
+//     Страницы
 // ===============================
 function renderPage() {
     if (!allTables.length) {
-        container.innerHTML = "<p style='text-align:center;color:#777;'>Нет данных для этого потока</p>";
+        container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных</p>";
         return;
     }
 
     const totalPages = Math.ceil(allTables.length / PAGE_SIZE);
     if (pageIndex >= totalPages) pageIndex = 0;
 
-    const start = pageIndex * PAGE_SIZE;
-    const slice = allTables.slice(start, start + PAGE_SIZE);
-
-    container.style.gridTemplateColumns = `repeat(${Math.min(slice.length,2)},1fr)`;
+    const slice = allTables.slice(pageIndex * PAGE_SIZE, pageIndex * PAGE_SIZE + PAGE_SIZE);
+    container.style.gridTemplateColumns = `repeat(${slice.length}, 1fr)`;
     container.innerHTML = slice.join("");
 
     pageIndex++;
@@ -336,28 +348,26 @@ function renderPage() {
 
 
 // ===============================
-//     ПЕРЕЗАГРУЗКА ДАННЫХ
+//     Обновление данных
 // ===============================
 async function refreshTables() {
     if (!currentStream) return;
 
     const cfg = STREAMS[currentStream];
     const gen = ++loadGeneration;
-
     const tables = [];
+
     for (let i = 0; i < cfg.ranges.length; i++) {
-        const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
-        tables.push(html);
+        tables.push(await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen));
     }
 
     if (gen !== loadGeneration) return;
-
     allTables = tables;
 }
 
 
 // ===============================
-//     ВЫБОР ПОТОКА
+//     Отображение потока
 // ===============================
 async function renderStream(stream) {
     const cfg = STREAMS[stream];
@@ -369,16 +379,14 @@ async function renderStream(stream) {
     }
 
     container.innerHTML = "<p style='text-align:center;color:#777;'>Загрузка...</p>";
-
     clearInterval(rotateTimer);
     clearInterval(refreshTimer);
 
     const gen = ++loadGeneration;
-
     const tables = [];
+
     for (let i = 0; i < cfg.ranges.length; i++) {
-        const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
-        tables.push(html);
+        tables.push(await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen));
     }
 
     if (gen !== loadGeneration) return;
@@ -387,13 +395,15 @@ async function renderStream(stream) {
     pageIndex = 0;
     renderPage();
 
-    if (allTables.length > PAGE_SIZE) rotateTimer = setInterval(renderPage, ROTATE_MS);
+    if (allTables.length > PAGE_SIZE) {
+        rotateTimer = setInterval(renderPage, ROTATE_MS);
+    }
     refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
 
 // ===============================
-//     Листенер селекта
+//     Слушатель селекта
 // ===============================
 select.addEventListener("change", () => {
     if (select.value) renderStream(select.value);
