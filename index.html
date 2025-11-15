@@ -214,7 +214,7 @@ async function loadTable(sheet, range, index, gen) {
     const res = await fetch(buildCsvUrl(sheet, range));
     if (!res.ok) throw new Error("Ошибка сети");
     const text = await res.text();
-    if (gen !== loadGeneration) return ""; // вернём пустую строку, а не null
+    if (gen !== loadGeneration) return null;
 
     const rawRows = parseCSV(text);
     const rows = rawRows.filter(r => r.some(c => c !== ""));
@@ -245,15 +245,16 @@ async function loadTable(sheet, range, index, gen) {
                     <tbody>`;
 
     participants.forEach(row => {
-      const fio = (row[0] || "").trim() || "-";
+      const fio = (row[0] || "").trim();
       let scoreText = (row[1] || "").trim();
+      if (!fio) return;
       const num = parseFloat(scoreText.replace(",", "."));
+      if (isNaN(num)) scoreText = "-";
       const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
-      if (scoreText === "" || isNaN(num)) scoreText = "-";
-      html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
+      html += <tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>;
     });
 
-    html += `</tbody></table></div>`;
+    html += </tbody></table></div>;
     return html;
 
   } catch (err) {
@@ -263,8 +264,6 @@ async function loadTable(sheet, range, index, gen) {
             </div>`;
   }
 }
-
-
 
 function renderPage() {
   if (!allTables.length) {
