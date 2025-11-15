@@ -106,19 +106,17 @@
     border-bottom: 1px solid #dce2e9;
   }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
+ /* Чтобы имена не выходили за пределы таблицы */
+  .table {
+    table-layout: auto; /* авто ширина столбцов */
+    word-break: break-word; /* перенос длинных слов */
   }
 
-  th, td {
-    border: 1px solid #dce2e9;
-    padding: 14px;
-    text-align: center;
-    font-size: 18px;
-    font-weight: 700;
+  .th, td {
+    max-width: 1px; /* заставляет переносить текст */
+    overflow-wrap: break-word;
   }
+
 
   th {
     background: #e6ecf5;
