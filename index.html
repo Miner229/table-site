@@ -10,6 +10,7 @@
     margin: 0;
     background: #f7f9fb;
     font-family: "Segoe UI", Arial, sans-serif;
+    overflow: hidden; /* важно — запрещаем прокрутку body */
   }
 
   header {
@@ -57,15 +58,17 @@
     font-weight: 600;
   }
 
+  /* --- ОСНОВНОЕ: контейнер прокручиваемый на мобилке --- */
   main {
     position: absolute;
     top: 100px; bottom: 0; left: 0; right: 0;
     padding: 14px;
     box-sizing: border-box;
+    overflow-y: auto;          /* ДЛЯ ТЕЛЕФОНОВ — разрешаем скролл */
+    overflow-x: hidden;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 14px;
-    overflow: hidden; /* без скроллов внутри контейнера */
   }
 
   .table-box {
@@ -127,6 +130,15 @@
     main {
       grid-template-columns: 1fr;
     }
+
+    th, td {
+      font-size: 16px;
+      padding: 10px;
+    }
+
+    .apparatus {
+      font-size: 18px;
+    }
   }
 
   @media (min-width: 1800px) {
@@ -162,7 +174,6 @@
   <script>
     const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
-    // Диапазоны: ты сам указываешь, откуда начинается каждая таблица.
     const STREAMS = {
       1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
       2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A18:B29","D17:E26","G17:H26"] },
@@ -176,18 +187,17 @@
     const container = document.getElementById("tables");
     const select = document.getElementById("streamSelect");
 
-    const PAGE_SIZE = 2;      // по 2 таблицы на экране
-    const ROTATE_MS = 20000;  // каждые 20 секунд переключаемся
-    const REFRESH_MS = 20000; // каждые 20 секунд обновляем данные с Google Sheets
+    const PAGE_SIZE = 2;
+    const ROTATE_MS = 20000;
+    const REFRESH_MS = 20000;
 
     let allTables = [];
     let pageIndex = 0;
     let rotateTimer = null;
     let refreshTimer = null;
     let currentStream = null;
-    let loadGeneration = 0; // чтобы игнорировать старые ответы
+    let loadGeneration = 0;
 
-    // Аккуратный CSV-парсер с поддержкой кавычек
     function parseCSV(text) {
       return text
         .trim()
@@ -205,7 +215,7 @@
              `&range=${range}&cacheBust=${Date.now()}`;
     }
 
-    // Загрузка и построение ОДНОЙ таблицы
+    // ------------ ГЛАВНОЕ: улучшенная загрузка таблицы ------------
     async function loadTable(sheet, range, index, gen) {
       const res = await fetch(buildCsvUrl(sheet, range));
       const text = await res.text();
@@ -222,40 +232,35 @@
           </div>`;
       }
 
-      // 1) Первая строка диапазона — Снаряд (ты сам его кладёшь в первой строке каждой таблицы)
-      let apparatusRow = rows[0];
-      let apparatusText = apparatusRow.join(" ").trim();
-
-      // На всякий случай убираем "ФИО"/"Оценка", если кто-то их туда случайно впишет
+      // --- 1) Аппарат (первая строка диапазона)
+      let apparatusText = rows[0].join(" ").trim();
       apparatusText = apparatusText
-        .replace(/\bФИО\b/gi, "")
-        .replace(/\bОЦЕНКА\b/gi, "")
+        .replace(/фио/gi, "")
+        .replace(/оценка/gi, "")
         .trim();
+      if (!apparatusText) apparatusText = "Снаряд";
 
-      if (!apparatusText && apparatusRow[0]) {
-        apparatusText = apparatusRow[0].trim();
-      }
+      // --- 2) Находим строку заголовков
+      let headerIndex = rows.findIndex(r =>
+        r[0] && /фио/i.test(r[0]) &&
+        r[1] && /оценка/i.test(r[1])
+      );
 
-      if (!apparatusText) {
-        apparatusText = "Снаряд";
-      }
+      if (headerIndex === -1) headerIndex = 1; // fallback
 
-      // 2) Вторая строка — заголовки (если есть)
-      let headerRow = rows.length > 1 ? rows[1] : [];
+      let headerRow = rows[headerIndex] || [];
       let nameHeader = headerRow[0] || "ФИО";
       let scoreHeader = headerRow[1] || "Оценка";
 
-      // 3) Остальные строки — участники
-      const participants = rows.slice(2); // всё после аппарат + заголовки
+      // --- 3) Участники
+      let participants = rows.slice(headerIndex + 1);
 
-      // Ищем максимум для "золота"
+      // ищем максимальную оценку
       let maxScore = -Infinity;
       participants.forEach(r => {
         const raw = (r[1] || "").replace(",", ".");
         const num = parseFloat(raw);
-        if (!isNaN(num)) {
-          if (num > maxScore) maxScore = num;
-        }
+        if (!isNaN(num) && num > maxScore) maxScore = num;
       });
 
       let html = `
@@ -275,8 +280,7 @@
       participants.forEach(row => {
         const fio = (row[0] || "").trim();
         const scoreText = (row[1] || "").trim();
-
-        if (!fio && !scoreText) return; // полностью пустые строки не выводим
+        if (!fio && !scoreText) return;
 
         const num = parseFloat(scoreText.replace(",", "."));
         const isGold = !isNaN(num) && num === maxScore;
@@ -298,7 +302,6 @@
       return html;
     }
 
-    // Рендер одной "страницы" из 2 таблиц
     function renderPage() {
       if (!allTables.length) {
         container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
@@ -317,12 +320,10 @@
       pageIndex = (pageIndex + 1) % totalPages;
     }
 
-    // Фоновое обновление данных для текущего потока (чтобы оценки обновлялись)
     async function refreshTables() {
       if (!currentStream) return;
-      const cfg = STREAMS[currentStream];
-      if (!cfg) return;
 
+      const cfg = STREAMS[currentStream];
       const gen = ++loadGeneration;
       const tables = [];
 
@@ -341,25 +342,22 @@
       }
 
       if (gen !== loadGeneration) return;
-
       allTables = tables;
-      // Страницу не сбрасываем, чтобы ротация шла дальше плавно
     }
 
-    // Полная перезагрузка потока (когда меняешь поток)
     async function renderStream(stream) {
       const cfg = STREAMS[stream];
       currentStream = stream;
 
       if (!cfg) {
-        container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных для этого потока</p>";
+        container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных</p>";
         return;
       }
 
       container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
 
-      if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
-      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+      clearInterval(rotateTimer);
+      clearInterval(refreshTimer);
 
       const gen = ++loadGeneration;
       const tables = [];
@@ -388,7 +386,6 @@
         rotateTimer = setInterval(renderPage, ROTATE_MS);
       }
 
-      // автообновление значений из Google Sheets
       refreshTimer = setInterval(refreshTables, REFRESH_MS);
     }
 
