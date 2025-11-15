@@ -167,16 +167,15 @@ tbody tr:nth-child(even) td {
 const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
 const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A2:C14","D2:F17","G2:I18","A16:C30","D16:F28","G16:I30"] },
-  2: { sheet: "поток 2", ranges: ["A3:C17","D3:F16","G3:I15","A18:C30","D17:F27","G17:I27"] },
-  3: { sheet: "поток 3", ranges: ["A2:C15","D2:F14","A16:C29","D16:F29"] },
-  4: { sheet: "поток 4", ranges: ["A3:C16","D3:F17","G3:I15","A18:C32","D18:F32","G18:I32","A33:C45"] },
-  5: { sheet: "поток 5", ranges: ["A3:C15","D3:F14","G3:I15","A17:C28","D17:F28"] },
-  6: { sheet: "поток 6", ranges: ["A2:C9","D2:F9","G2:I9"] },
-  7: { sheet: "поток 7", ranges: ["A2:C14","D2:F15","A16:C28","D16:F27"] }
+  1: { sheet: "поток 1", ranges: ["A2:F14","A16:F30"] },
+  2: { sheet: "поток 2", ranges: ["A3:F17","A18:F30"] },
+  3: { sheet: "поток 3", ranges: ["A2:F15","A16:F29"] },
+  4: { sheet: "поток 4", ranges: ["A3:F16","A18:F32","A33:F45"] },
+  5: { sheet: "поток 5", ranges: ["A3:F15","A17:F28"] },
+  6: { sheet: "поток 6", ranges: ["A2:F9"] },
+  7: { sheet: "поток 7", ranges: ["A2:F14","A16:F28"] }
 };
 
-// === Интерфейс ===
 const container = document.getElementById("tables");
 const select = document.getElementById("streamSelect");
 
@@ -191,25 +190,112 @@ let refreshTimer = null;
 let currentStream = null;
 let loadGeneration = 0;
 
-// === CSV парсер ===
+// CSV parser with row padding
 function parseCSV(text) {
-    return text.trim().split(/\r?\n/).map(line =>
-        line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v => 
+    return text.trim().split(/\r?\n/).map(line => {
+        const cols = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v =>
             v.replace(/^"+|"+$/g,"").trim()
-        )
-    );
+        );
+        return cols;
+    });
 }
 
-// === URL CSV ===
+// pad to same column count
+function normalizeRows(rows) {
+    let maxCols = 0;
+    rows.forEach(r => maxCols = Math.max(maxCols, r.length));
+    return rows.map(r => {
+        while (r.length < maxCols) r.push("");
+        return r;
+    });
+}
+
 function buildCsvUrl(sheet, range) {
     return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
-// === Parse score safely ===
 function parseScore(val) {
     if (!val) return NaN;
     const num = parseFloat(val.replace(",", "."));
     return isNaN(num) ? NaN : num;
+}
+
+// MAIN TABLE PARSER (fixes everything)
+function parseTable(rows, index) {
+    rows = normalizeRows(rows);
+
+    const left = (index % 2 === 1);  
+    const offset = left ? 0 : 3;      
+
+    const COL_FIO = offset;
+    const COL_SCORE = offset + 1;
+
+    const hasData = rows.some(r => (r[COL_FIO] || r[COL_SCORE]));
+    if (!hasData) {
+        return `
+        <div class="table-box">
+            <div class="table-title">Таблица ${index}</div>
+            <div class="apparatus" style="color:#999;">Нет данных</div>
+        </div>`;
+    }
+
+    let apparatus = "";
+    let headerIdx = null;
+
+    // find first non-empty for apparatus
+    for (let i = 0; i < rows.length; i++) {
+        if (rows[i][COL_FIO]) {
+            apparatus = rows[i][COL_FIO];
+            headerIdx = i + 1;
+            break;
+        }
+    }
+    if (!apparatus) apparatus = "Снаряд";
+
+    const headerRow = rows[headerIdx] || [];
+    const nameHeader = headerRow[COL_FIO] || "ФИО";
+    const scoreHeader = headerRow[COL_SCORE] || "ОЦЕНКА";
+
+    const participants = rows.slice(headerIdx + 1);
+
+    function getScore(r) {
+        return (r[COL_SCORE] && r[COL_SCORE].trim())
+            ? r[COL_SCORE].trim()
+            : "-";
+    }
+
+    let maxScore = -Infinity;
+    participants.forEach(r => {
+        const s = parseScore(getScore(r));
+        if (!isNaN(s) && s > maxScore) maxScore = s;
+    });
+
+    let html = `
+    <div class="table-box">
+        <div class="table-title">Таблица ${index}</div>
+        <div class="apparatus">${apparatus}</div>
+        <table>
+            <thead>
+                <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
+            </thead>
+            <tbody>
+    `;
+
+    participants.forEach(r => {
+        const fio = r[COL_FIO] || "-";
+        const score = getScore(r);
+        const num = parseScore(score);
+        const isGold = (!isNaN(num) && Math.abs(num - maxScore) < 1e-6);
+
+        html += `
+        <tr class="${isGold ? "gold" : ""}">
+            <td>${fio}</td>
+            <td>${score}</td>
+        </tr>`;
+    });
+
+    html += "</tbody></table></div>";
+    return html;
 }
 
 async function loadTable(sheet, range, index, gen) {
@@ -220,91 +306,9 @@ async function loadTable(sheet, range, index, gen) {
         if (gen !== loadGeneration) return null;
 
         let rows = parseCSV(text).filter(r => r.some(c => c !== ""));
-        if (!rows.length) throw new Error("Нет данных");
+        return parseTable(rows, index);
 
-        // Определяем, какую таблицу парсим:
-        // index = 1 → левая таблица (0,1)
-        // index = 2 → правая таблица (3,4)
-        const offset = (index % 2 === 1) ? 0 : 3;
-
-        // Столбцы:
-        const COL_FIO = offset;
-        const COL_SCORE = offset + 1;
-
-        // Если таблица полностью пуста – возвращаем пустой шаблон
-        const hasAnyData = rows.some(r => r[COL_FIO] || r[COL_SCORE]);
-        if (!hasAnyData) {
-            return `
-            <div class="table-box">
-                <div class="table-title">Таблица ${index}</div>
-                <div class="apparatus" style="color:#999;">Нет данных</div>
-            </div>`;
-        }
-
-        // Снаряд = первая НЕ пустая строка в FIO колонке
-        let apparatusText = null;
-        let startIndex = 0;
-
-        for (let i = 0; i < rows.length; i++) {
-            if (rows[i][COL_FIO]) {
-                apparatusText = rows[i][COL_FIO];
-                startIndex = i + 1;
-                break;
-            }
-        }
-        if (!apparatusText) apparatusText = "Снаряд";
-
-        // Заголовок (ФИО | ОЦЕНКА) = следующая строка
-        const headerRow = rows[startIndex] || [];
-        const nameHeader = headerRow[COL_FIO] || "ФИО";
-        const scoreHeader = headerRow[COL_SCORE] || "Оценка";
-
-        // Участники = всё ниже
-        const participants = rows.slice(startIndex + 1);
-
-        // Считываем оценки
-        function getScore(r) {
-            return r[COL_SCORE] && r[COL_SCORE].trim()
-                ? r[COL_SCORE].trim()
-                : "-";
-        }
-
-        // Ищем максимальную оценку
-        let maxScore = -Infinity;
-        participants.forEach(r => {
-            const s = parseFloat(getScore(r).replace(",", "."));
-            if (!isNaN(s) && s > maxScore) maxScore = s;
-        });
-
-        // Сборка таблицы
-        let html = `
-        <div class="table-box">
-            <div class="table-title">Таблица ${index}</div>
-            <div class="apparatus">${apparatusText}</div>
-            <table>
-                <thead>
-                    <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
-                </thead>
-                <tbody>
-        `;
-
-        participants.forEach(r => {
-            const fio = r[COL_FIO] || "-";
-            const score = getScore(r);
-            const num = parseFloat(score.replace(",", "."));
-            const isGold = (!isNaN(num) && Math.abs(num - maxScore) < 1e-6);
-
-            html += `
-            <tr class="${isGold ? "gold" : ""}">
-                <td>${fio}</td>
-                <td>${score}</td>
-            </tr>`;
-        });
-
-        html += "</tbody></table></div>";
-        return html;
-
-    } catch (err) {
+    } catch {
         return `
         <div class="table-box">
             <div class="table-title">Таблица ${index}</div>
@@ -313,11 +317,9 @@ async function loadTable(sheet, range, index, gen) {
     }
 }
 
-// === Render one page (2 таблицы) ===
 function renderPage() {
     if (!allTables.length) {
-        container.innerHTML =
-            "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
+        container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
         return;
     }
 
@@ -327,46 +329,45 @@ function renderPage() {
     const start = pageIndex * PAGE_SIZE;
     const slice = allTables.slice(start, start + PAGE_SIZE);
 
-    container.style.gridTemplateColumns =
-        `repeat(${Math.min(slice.length, 2)}, 1fr)`;
-
+    container.style.gridTemplateColumns = `repeat(${slice.length},1fr)`;
     container.innerHTML = slice.join("");
 
     pageIndex++;
 }
 
-// === Reload tables ===
 async function refreshTables() {
     if (!currentStream) return;
     const cfg = STREAMS[currentStream];
     const gen = ++loadGeneration;
-    const tables = [];
 
-    for (let i = 0; i < cfg.ranges.length; i++) {
-        const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
-        tables.push(html);
+    const tables = [];
+    let idx = 1;
+
+    for (let range of cfg.ranges) {
+        tables.push(await loadTable(cfg.sheet, range, idx++, gen));
+        tables.push(await loadTable(cfg.sheet, range, idx++, gen));
     }
 
     if (gen !== loadGeneration) return;
     allTables = tables;
 }
 
-// === Main load ===
 async function renderStream(stream) {
-    const cfg = STREAMS[stream];
     currentStream = stream;
-
-    container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
+    container.innerHTML = "<p style='text-align:center;'>Загрузка...</p>";
 
     clearInterval(rotateTimer);
     clearInterval(refreshTimer);
 
+    const cfg = STREAMS[stream];
     const gen = ++loadGeneration;
-    const tables = [];
 
-    for (let i = 0; i < cfg.ranges.length; i++) {
-        const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
-        tables.push(html);
+    const tables = [];
+    let idx = 1;
+
+    for (let range of cfg.ranges) {
+        tables.push(await loadTable(cfg.sheet, range, idx++, gen));
+        tables.push(await loadTable(cfg.sheet, range, idx++, gen));
     }
 
     if (gen !== loadGeneration) return;
@@ -375,13 +376,10 @@ async function renderStream(stream) {
     pageIndex = 0;
     renderPage();
 
-    if (allTables.length > PAGE_SIZE)
-        rotateTimer = setInterval(renderPage, ROTATE_MS);
-
+    rotateTimer = setInterval(renderPage, ROTATE_MS);
     refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
-// === Selector ===
 select.addEventListener("change", () => {
     const s = select.value;
     if (s) renderStream(s);
