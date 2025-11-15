@@ -164,43 +164,25 @@ tbody tr:nth-child(even) td {
 <main id="tables"></main>
 
 <script>
-// ===============================
-//     ПАРСЕР ОЦЕНОК
-// ===============================
-function parseScore(v) {
-    if (!v) return NaN;
-    v = v.replace(",", ".").trim();
-    const num = Number(v);
-    return Number.isFinite(num) ? num : NaN;
-}
-
-// ===============================
-//     CSV ПАРСЕР
-// ===============================
-function parseCSV(text) {
-    return text.trim().split(/\r?\n/).map(line =>
-        line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v => v.replace(/^"+|"+$/g, "").trim())
-    );
-}
-
-// ===============================
-//     ПОТОКИ (ДИАПАЗОНЫ A1:CXXX)
-// ===============================
 const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
 const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A1:C14","D1:F26","G1:I26"] },
-  2: { sheet: "поток 2", ranges: ["A1:C16","D1:F26","G1:I26"] },
-  3: { sheet: "поток 3", ranges: ["A1:C14","D1:F13","A15:C28","D15:F28"] },
-  4: { sheet: "поток 4", ranges: ["A1:C15","D1:F16","G1:I14","A17:C31","D17:F31","G17:I31"] },
-  5: { sheet: "поток 5", ranges: ["A1:C14","D1:F13","G1:I14","A16:C27","D16:F27"] },
-  6: { sheet: "поток 6", ranges: ["A1:C8","D1:F8","G1:I8"] },
-  7: { sheet: "поток 7", ranges: ["A1:C13","D1:F14","A15:C27","D15:F26"] }
+  1: { sheet: "поток 1", ranges: ["A2:C14","D2:F17","G2:I18","A16:C30","D16:F28","G16:I30"] },
+  2: { sheet: "поток 2", ranges: ["A3:C17","D3:F16","G3:I15","A18:C30","D17:F27","G17:I27"] },
+  3: { sheet: "поток 3", ranges: ["A2:C15","D2:F14","A16:C29","D16:F29"] },
+  4: { sheet: "поток 4", ranges: ["A3:C16","D3:F17","G3:I15","A18:C32","D18:F32","G18:I32","A33:C45"] },
+  5: { sheet: "поток 5", ranges: ["A3:C15","D3:F14","G3:I15","A17:C28","D17:F28"] },
+  6: { sheet: "поток 6", ranges: ["A2:C9","D2:F9","G2:I9"] },
+  7: { sheet: "поток 7", ranges: ["A2:C14","D2:F15","A16:C28","D16:F27"] }
 };
 
-// ===============================
+// === Интерфейс ===
 const container = document.getElementById("tables");
 const select = document.getElementById("streamSelect");
+
+const PAGE_SIZE = 2;
+const ROTATE_MS = 20000;
+const REFRESH_MS = 20000;
 
 let allTables = [];
 let pageIndex = 0;
@@ -209,136 +191,106 @@ let refreshTimer = null;
 let currentStream = null;
 let loadGeneration = 0;
 
-const PAGE_SIZE = 2;
-const ROTATE_MS = 20000;
-const REFRESH_MS = 20000;
+// === CSV парсер ===
+function parseCSV(text) {
+    return text.trim().split(/\r?\n/).map(line =>
+        line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v => 
+            v.replace(/^"+|"+$/g,"").trim()
+        )
+    );
+}
 
-// ===============================
-//   URL CSV
-// ===============================
+// === URL CSV ===
 function buildCsvUrl(sheet, range) {
     return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
-// ===============================
-//   ЗАГРУЗКА ТАБЛИЦЫ
-// ===============================
+// === Parse score safely ===
+function parseScore(val) {
+    if (!val) return NaN;
+    const num = parseFloat(val.replace(",", "."));
+    return isNaN(num) ? NaN : num;
+}
+
+// === Load one table ===
 async function loadTable(sheet, range, index, gen) {
     try {
         const res = await fetch(buildCsvUrl(sheet, range));
+        if (!res.ok) throw new Error("Ошибка сети");
         const text = await res.text();
         if (gen !== loadGeneration) return null;
 
-        let rows = parseCSV(text)
-            .filter(r => !(r.length === 0 || r.every(c => !c.trim())));
+        let rows = parseCSV(text).filter(r => r.some(c => c !== ""));
+        if (rows.length < 2) throw new Error("Нет данных");
 
-        if (rows.length < 3)
-            throw new Error("Недостаточно данных");
+        // === ЧИТАЕМ СТРОГО КАК В GOOGLE SHEET ===
 
-        // ===============================
-        // 1. Снаряд = строго первая строка
-        // ===============================
-        const apparatus = rows[0][0].trim() || "Снаряд";
+        // 1. Снаряд
+        const apparatusText = rows[0][0] || "Снаряд";
 
-        // ===============================
-        // 2. Заголовок = строго вторая строка
-        // ===============================
+        // 2. Заголовок ФИО / ОЦЕНКА
         const headerRow = rows[1];
         const nameHeader = headerRow[0] || "ФИО";
+        const scoreHeader = headerRow[1] || "ОЦЕНКА";
 
-        // Определяем индекс колонки «Оценка»
-        let scoreCol = 1;
-        for (let j = 1; j < headerRow.length; j++) {
-            const col = (headerRow[j] || "").toLowerCase();
-            if (col.includes("оцен") || col.includes("бал")) {
-                scoreCol = j;
-                break;
-            }
-        }
-        const scoreHeader = headerRow[scoreCol] || "ОЦЕНКА";
-
-        // ===============================
-        // 3. Участники с 3-й строки
-        // ===============================
+        // 3. Участники
         const participants = rows.slice(2);
 
-        // ===============================
-        // 4. Ищем максимум оценки
-        // ===============================
+        function getScore(r) {
+            if (r[1] && r[1].trim()) return r[1].trim();
+            if (r[2] && r[2].trim()) return r[2].trim();
+            return "-";
+        }
+
+        // 4. Максимальный балл
         let maxScore = -Infinity;
-
         participants.forEach(r => {
-            let scoreText = r[scoreCol] || "";
-
-            if (!scoreText.trim()) {
-                for (let j = scoreCol + 1; j < r.length; j++) {
-                    if (!r[j]) continue;
-                    const n = parseScore(r[j]);
-                    if (!isNaN(n)) {
-                        scoreText = r[j];
-                        break;
-                    }
-                }
-            }
-
-            const num = parseScore(scoreText);
-            if (!isNaN(num) && num > maxScore) maxScore = num;
+            const s = parseScore(getScore(r));
+            if (!isNaN(s) && s > maxScore) maxScore = s;
         });
 
-        // ===============================
-        // 5. Собираем HTML
-        // ===============================
-        let html = `<div class="table-box">
+        // 5. Генерация HTML
+        let html = `
+        <div class="table-box">
             <div class="table-title">Таблица ${index}</div>
-            <div class="apparatus">${apparatus}</div>
-
+            <div class="apparatus">${apparatusText}</div>
             <table>
                 <thead>
                     <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
                 </thead>
-                <tbody>`;
+                <tbody>
+        `;
 
         participants.forEach(r => {
             const fio = r[0] || "-";
-
-            let score = r[scoreCol] || "";
-            if (!score.trim()) {
-                for (let j = scoreCol + 1; j < r.length; j++) {
-                    if (!r[j]) continue;
-                    const n = parseScore(r[j]);
-                    if (!isNaN(n)) {
-                        score = r[j];
-                        break;
-                    }
-                }
-            }
-
+            const score = getScore(r);
             const num = parseScore(score);
-            if (!score || isNaN(num)) score = "-";
-
             const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
 
-            html += `<tr class="${isGold ? "gold" : ""}">
-                        <td>${fio}</td>
-                        <td>${score}</td>
-                    </tr>`;
+            html += `
+            <tr class="${isGold ? "gold" : ""}">
+                <td>${fio}</td>
+                <td>${score}</td>
+            </tr>`;
         });
 
         html += `</tbody></table></div>`;
         return html;
 
-    } catch (err) {
-        console.error(err);
-        return `<div class="table-box"><div class="table-title">Таблица ${index}</div><div class="apparatus" style="color:#c00;">Ошибка</div></div>`;
+    } catch {
+        return `
+        <div class="table-box">
+            <div class="table-title">Таблица ${index}</div>
+            <div class="apparatus" style="color:#c00;">Нет данных</div>
+        </div>`;
     }
 }
 
-// ===============================
-//     ОТРИСОВКА СТРАНИЦ
-// ===============================
+// === Render one page (2 таблицы) ===
 function renderPage() {
     if (!allTables.length) {
-        container.innerHTML = "<p>Нет данных</p>";
+        container.innerHTML =
+            "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
         return;
     }
 
@@ -348,66 +300,65 @@ function renderPage() {
     const start = pageIndex * PAGE_SIZE;
     const slice = allTables.slice(start, start + PAGE_SIZE);
 
-    container.style.gridTemplateColumns = `repeat(${slice.length}, 1fr)`;
+    container.style.gridTemplateColumns =
+        `repeat(${Math.min(slice.length, 2)}, 1fr)`;
+
     container.innerHTML = slice.join("");
 
     pageIndex++;
 }
 
-// ===============================
-//     АВТО ОТРИСОВКА
-// ===============================
+// === Reload tables ===
 async function refreshTables() {
     if (!currentStream) return;
-
     const cfg = STREAMS[currentStream];
     const gen = ++loadGeneration;
     const tables = [];
 
-    for (let i = 0; i < cfg.ranges.length; i++)
-        tables.push(await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen));
+    for (let i = 0; i < cfg.ranges.length; i++) {
+        const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
+        tables.push(html);
+    }
 
     if (gen !== loadGeneration) return;
     allTables = tables;
 }
 
-// ===============================
-//     СМЕНА ПОТОКА
-// ===============================
+// === Main load ===
 async function renderStream(stream) {
-    currentStream = stream;
     const cfg = STREAMS[stream];
+    currentStream = stream;
+
+    container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
 
     clearInterval(rotateTimer);
     clearInterval(refreshTimer);
 
-    container.innerHTML = "<p>Загрузка...</p>";
-
     const gen = ++loadGeneration;
     const tables = [];
 
-    for (let i = 0; i < cfg.ranges.length; i++)
-        tables.push(await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen));
+    for (let i = 0; i < cfg.ranges.length; i++) {
+        const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
+        tables.push(html);
+    }
 
     if (gen !== loadGeneration) return;
 
     allTables = tables;
     pageIndex = 0;
-
     renderPage();
-    if (allTables.length > PAGE_SIZE) rotateTimer = setInterval(renderPage, ROTATE_MS);
+
+    if (allTables.length > PAGE_SIZE)
+        rotateTimer = setInterval(renderPage, ROTATE_MS);
+
     refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
-// ===============================
-//     ВЫБОР ПОТОКА
-// ===============================
+// === Selector ===
 select.addEventListener("change", () => {
-    if (select.value) renderStream(select.value);
+    const s = select.value;
+    if (s) renderStream(s);
 });
-
-    
-
 </script>
 
 </body>
