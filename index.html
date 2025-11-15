@@ -80,8 +80,8 @@
   .apparatus {
     padding: 10px;
     text-align: center;
-    font-size: 20px;
-    font-weight: 900;
+    font-size: 18px;
+    font-weight: 800;
     background: #eef4ff;
     border-bottom: 1px solid #dce2e9;
   }
@@ -117,6 +117,13 @@
     font-weight: 900 !important;
   }
 
+  @media (min-width: 1800px) {
+    table { font-size: 26px; }
+    th, td { padding: 18px; }
+    .table-title { font-size: 28px; }
+    .apparatus { font-size: 24px; }
+  }
+
   @media (max-width: 900px) {
     main { grid-template-columns: 1fr; }
   }
@@ -147,20 +154,20 @@
 <main id="tables"></main>
 
 <script>
-const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
+const SHEET_ID = '1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w';
 
 const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
-  2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A18:B29","D17:E27","G17:H26"] },
-  3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
-  4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
-  5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E27"] },
-  6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
-  7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
+  1: { sheet: 'поток 1', ranges: ['A2:B9','D2:E13','G2:H14','A16:B28','D16:E27','G16:H28'] },
+  2: { sheet: 'поток 2', ranges: ['A3:B16','D3:E15','G3:H14','A18:B29','D17:E26','G17:H26'] },
+  3: { sheet: 'поток 3', ranges: ['A2:B14','D2:E13','A16:B28','D16:E28'] },
+  4: { sheet: 'поток 4', ranges: ['A3:B15','D3:E16','G3:H14','A18:B31','D18:E31','G18:H31','A33:B44'] },
+  5: { sheet: 'поток 5', ranges: ['A3:B14','D3:E13','G3:H14','A17:B27','D17:E27'] },
+  6: { sheet: 'поток 6', ranges: ['A2:B8','D2:E8','G2:H8'] },
+  7: { sheet: 'поток 7', ranges: ['A2:B13','D2:E14','A16:B27','D16:E26'] }
 };
 
-const container = document.getElementById("tables");
-const select = document.getElementById("streamSelect");
+const container = document.getElementById('tables');
+const select = document.getElementById('streamSelect');
 
 let allTablesHTML = [];
 let pageIndex = 0;
@@ -172,57 +179,80 @@ const PAGE_SIZE = 2;
 const ROTATE_MS = 20000;
 const REFRESH_MS = 20000;
 
-function clean(text){
-  return text.replace(/^"+|"+$/g,"").replace(/""/g,'"').trim();
+// GViz JSON: парсим ответ вида google.visualization.Query.setResponse(...)
+function parseGvizJSON(text) {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1) {
+    throw new Error('GViz JSON: invalid format');
+  }
+  const json = text.slice(start, end + 1);
+  return JSON.parse(json);
 }
 
-function parseCSV(text){
-  return text
-    .trim()
-    .split(/\r?\n/)
-    .map(line => line.split(",").map(clean));
+// Превращаем одну строку GViz в массив значений
+function rowToValues(row) {
+  const cells = row.c || [];
+  return cells.map(cell => {
+    if (!cell || cell.v === null || typeof cell.v === 'undefined') return '';
+    return String(cell.v);
+  });
 }
 
-function buildUrl(sheet, range){
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
+function buildUrl(sheet, range) {
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
-async function loadTable(sheet, range, title, token){
+async function loadTable(sheet, range, title, token) {
   const res = await fetch(buildUrl(sheet, range));
   const text = await res.text();
   if (token !== requestToken) return null;
 
-  const rows = parseCSV(text);
-  if (!rows.length) return null;
+  const json = parseGvizJSON(text);
+  const gRows = (json.table && json.table.rows) ? json.table.rows : [];
+  if (!gRows.length) return null;
 
-  // --- СНАРЯД ---
-  let apparatus = rows[0].join(" ").trim();
+  const rows = gRows.map(rowToValues); // массив массивов строк [ [A2,B2], [A3,B3], ... ]
 
+  // --- СНАРЯД: строго первая ячейка первой строки (A2 / D2 / G2 / ...) ---
+  let apparatus = (rows[0][0] || '').trim();
+
+  // без ФИО / Оценка в названии
   apparatus = apparatus
-    .replace(/\bФИО\b/gi, "")
-    .replace(/\bОценка\b/gi, "")
-    .replace(/[,;]/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/\bФИО\b/gi, '')
+    .replace(/\bОценка\b/gi, '')
+    .replace(/[,;]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 
-  if (!apparatus) apparatus = "Снаряд";
-
-  // --- УЧАСТНИКИ ---
-  const participants = [];
-  for (let i = 2; i < rows.length; i++){
-    const fio = rows[i][0] || "";
-    const score = rows[i][1] || "";
-
-    if (!fio.trim() && !score.trim()) continue;
-
-    participants.push([fio.trim(), score.trim()]);
+  if (!apparatus) {
+    // если вдруг пусто — берём первую непустую ячейку из первой строки, не равную ФИО/Оценка
+    for (const c of rows[0]) {
+      const t = (c || '').trim();
+      if (!t) continue;
+      if (/фио/i.test(t) || /оценка/i.test(t)) continue;
+      apparatus = t;
+      break;
+    }
   }
 
-  // --- ЗОЛОТО ---
-  let max = -Infinity;
+  if (!apparatus) apparatus = 'Снаряд';
+
+  // --- УЧАСТНИКИ ---
+  // row[1] — это ФИО | Оценка (заголовок) → пропускаем
+  const participants = [];
+  for (let i = 2; i < rows.length; i++) {
+    const fio = (rows[i][0] || '').trim();
+    const score = (rows[i][1] || '').trim();
+    if (!fio && !score) continue;
+    participants.push([fio, score]);
+  }
+
+  // --- ЗОЛОТО: максимальная числовая оценка ---
+  let maxScore = -Infinity;
   participants.forEach(([fio, score]) => {
-    const v = parseFloat(score);
-    if (!isNaN(v) && v > max) max = v;
+    const val = parseFloat(score);
+    if (!isNaN(val) && val > maxScore) maxScore = val;
   });
 
   // --- HTML ---
@@ -232,14 +262,24 @@ async function loadTable(sheet, range, title, token){
       <div class="apparatus">${apparatus}</div>
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>ФИО</th><th>Оценка</th></tr></thead>
+          <thead>
+            <tr>
+              <th>ФИО</th>
+              <th>Оценка</th>
+            </tr>
+          </thead>
           <tbody>
   `;
 
-  participants.forEach(([fio, score])=>{
-    const v = parseFloat(score);
-    const gold = (!isNaN(v) && v === max) ? "gold" : "";
-    html += `<tr class="${gold}"><td>${fio}</td><td>${score}</td></tr>`;
+  participants.forEach(([fio, score]) => {
+    const num = parseFloat(score);
+    const gold = (!isNaN(num) && num === maxScore) ? 'gold' : '';
+    html += `
+      <tr class="${gold}">
+        <td>${fio}</td>
+        <td>${score}</td>
+      </tr>
+    `;
   });
 
   html += `
@@ -252,44 +292,50 @@ async function loadTable(sheet, range, title, token){
   return html;
 }
 
-function renderPage(){
-  container.innerHTML = "";
+function renderPage() {
+  container.innerHTML = '';
   const start = pageIndex * PAGE_SIZE;
   const slice = allTablesHTML.slice(start, start + PAGE_SIZE);
-  slice.forEach(html => container.insertAdjacentHTML("beforeend", html));
 
-  const total = Math.max(1, Math.ceil(allTablesHTML.length / PAGE_SIZE));
-  pageIndex = (pageIndex + 1) % total;
+  slice.forEach(html => container.insertAdjacentHTML('beforeend', html));
+
+  const totalPages = Math.max(1, Math.ceil(allTablesHTML.length / PAGE_SIZE));
+  pageIndex = (pageIndex + 1) % totalPages;
 }
 
-async function refreshTables(stream){
+async function refreshTables(stream) {
   const cfg = STREAMS[stream];
   if (!cfg) return;
   const token = requestToken;
 
   const list = [];
-  for (let i = 0; i < cfg.ranges.length; i++){
-    try{
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
+  for (let i = 0; i < cfg.ranges.length; i++) {
+    try {
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
       if (html) list.push(html);
-    } catch{
-      list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
+    } catch {
+      list.push(`
+        <div class="table-box">
+          <div class="table-title">Таблица ${i + 1}</div>
+          <div style="padding:10px;text-align:center;color:#c00;">Ошибка загрузки</div>
+        </div>
+      `);
     }
   }
 
-  if (token === requestToken){
+  if (token === requestToken) {
     allTablesHTML = list;
   }
 }
 
-async function renderStream(stream){
+async function renderStream(stream) {
   const cfg = STREAMS[stream];
-  if (!cfg){
+  if (!cfg) {
     container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных</p>";
     return;
   }
 
-  container.innerHTML = "<p style='text-align:center;color:#777;'>Загрузка…</p>";
+  container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка…</p>";
 
   if (intervalId) clearInterval(intervalId);
   if (refreshId) clearInterval(refreshId);
@@ -298,12 +344,17 @@ async function renderStream(stream){
   const token = requestToken;
 
   const list = [];
-  for (let i = 0; i < cfg.ranges.length; i++){
-    try{
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
+  for (let i = 0; i < cfg.ranges.length; i++) {
+    try {
+      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i + 1}`, token);
       if (html) list.push(html);
-    } catch{
-      list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
+    } catch {
+      list.push(`
+        <div class="table-box">
+          <div class="table-title">Таблица ${i + 1}</div>
+          <div style="padding:10px;text-align:center;color:#c00;">Ошибка загрузки</div>
+        </div>
+      `);
     }
   }
 
@@ -317,7 +368,7 @@ async function renderStream(stream){
   refreshId = setInterval(() => refreshTables(stream), REFRESH_MS);
 }
 
-select.addEventListener("change", () => renderStream(select.value));
+select.addEventListener('change', () => renderStream(select.value));
 </script>
 
 </body>
