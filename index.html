@@ -192,34 +192,23 @@ let refreshTimer = null;
 let currentStream = null;
 let loadGeneration = 0;
 
-// --- безопасный парсер оценок ---
-function parseScore(scoreText) {
-  if (!scoreText) return NaN;
-  let clean = scoreText.replace(/\s+/g, "").replace(/"/g,"").replace(",", ".");
-  const num = parseFloat(clean);
-  return isNaN(num) ? NaN : num;
-}
-
-// --- парсим CSV ---
 function parseCSV(text) {
   return text
     .trim()
     .split(/\r?\n/)
     .map(line =>
       line
-        .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+        .split(/,(?=(?:[^"]"[^"]")[^"]$)/)
         .map(v => v.replace(/^"+|"+$/g, "").trim())
     );
 }
 
-// --- строим ссылку на CSV ---
 function buildCsvUrl(sheet, range) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
-         `?tqx=out:csv&sheet=${encodeURIComponent(sheet)}` +
-         `&range=${range}&cacheBust=${Date.now()}`;
+  return https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq +
+         ?tqx=out:csv&sheet=${encodeURIComponent(sheet)} +
+         &range=${range}&cacheBust=${Date.now()};
 }
 
-// --- загружаем таблицу ---
 async function loadTable(sheet, range, index, gen) {
   try {
     const res = await fetch(buildCsvUrl(sheet, range));
@@ -242,10 +231,9 @@ async function loadTable(sheet, range, index, gen) {
 
     let participants = rows.slice(headerIndex + 1);
 
-    // --- находим максимальную оценку
     let maxScore = -Infinity;
     participants.forEach(r => {
-      const num = parseScore(r[1]);
+      const num = parseFloat((r[1] || "").replace(",", "."));
       if (!isNaN(num) && num > maxScore) maxScore = num;
     });
 
@@ -257,15 +245,16 @@ async function loadTable(sheet, range, index, gen) {
                     <tbody>`;
 
     participants.forEach(row => {
-      const fio = (row[0] || "").trim() || "-"; // если ФИО пустое
+      const fio = (row[0] || "").trim();
       let scoreText = (row[1] || "").trim();
-      const num = parseScore(scoreText);
+      if (!fio) return;
+      const num = parseFloat(scoreText.replace(",", "."));
+      if (isNaN(num)) scoreText = "-";
       const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
-      if (scoreText === "" || isNaN(num)) scoreText = "-";
-      html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
+      html += <tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>;
     });
 
-    html += `</tbody></table></div>`;
+    html += </tbody></table></div>;
     return html;
 
   } catch (err) {
@@ -276,7 +265,6 @@ async function loadTable(sheet, range, index, gen) {
   }
 }
 
-// --- рендерим страницу ---
 function renderPage() {
   if (!allTables.length) {
     container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
@@ -289,13 +277,12 @@ function renderPage() {
   const start = pageIndex * PAGE_SIZE;
   const slice = allTables.slice(start, start + PAGE_SIZE);
 
-  container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 2)}, 1fr)`;
+  container.style.gridTemplateColumns = repeat(${Math.min(slice.length, 2)}, 1fr);
   container.innerHTML = slice.join("");
 
   pageIndex++;
 }
 
-// --- обновление таблиц ---
 async function refreshTables() {
   if (!currentStream) return;
   const cfg = STREAMS[currentStream];
@@ -309,7 +296,6 @@ async function refreshTables() {
   allTables = tables;
 }
 
-// --- рендер выбранного потока ---
 async function renderStream(stream) {
   const cfg = STREAMS[stream];
   currentStream = stream;
@@ -338,11 +324,11 @@ async function renderStream(stream) {
   refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
-// --- обработка выбора потока ---
 select.addEventListener("change", () => {
   const s = select.value;
   if (s) renderStream(s);
 });
+    
 
 
 </script>
