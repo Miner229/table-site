@@ -166,223 +166,200 @@ tbody tr:nth-child(even) td {
 <script>
 const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
+// Диапазоны ты уже правильно подобрал — оставляем как есть
 const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A2:F14","A16:F30"] },
-  2: { sheet: "поток 2", ranges: ["A3:F17","A18:F30"] },
-  3: { sheet: "поток 3", ranges: ["A2:F15","A16:F29"] },
-  4: { sheet: "поток 4", ranges: ["A3:F16","A18:F32","A33:F45"] },
-  5: { sheet: "поток 5", ranges: ["A3:F15","A17:F28"] },
-  6: { sheet: "поток 6", ranges: ["A2:F9"] },
-  7: { sheet: "поток 7", ranges: ["A2:F14","A16:F28"] }
+  1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
+  2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A19:B29","D19:E27","G19:H27"] },
+  3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
+  4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
+  5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E27"] },
+  6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
+  7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
 };
 
 const container = document.getElementById("tables");
 const select = document.getElementById("streamSelect");
 
-const PAGE_SIZE = 2;
-const ROTATE_MS = 20000;
-const REFRESH_MS = 20000;
+const PAGE_SIZE   = 2;      // по 2 таблицы за раз
+const ROTATE_MS   = 20000;  // смена страницы
+const REFRESH_MS  = 20000;  // обновление данных
 
-let allTables = [];
-let pageIndex = 0;
-let rotateTimer = null;
-let refreshTimer = null;
+let allTables     = [];
+let pageIndex     = 0;
+let rotateTimer   = null;
+let refreshTimer  = null;
 let currentStream = null;
 let loadGeneration = 0;
 
-// CSV parser with row padding
-function parseCSV(text) {
-    return text.trim().split(/\r?\n/).map(line => {
-        const cols = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v =>
-            v.replace(/^"+|"+$/g,"").trim()
-        );
-        return cols;
-    });
-}
+// ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----------
 
-// pad to same column count
-function normalizeRows(rows) {
-    let maxCols = 0;
-    rows.forEach(r => maxCols = Math.max(maxCols, r.length));
-    return rows.map(r => {
-        while (r.length < maxCols) r.push("");
-        return r;
-    });
+// Простенький CSV-парсер
+function parseCSV(text) {
+  return text.trim().split(/\r?\n/).map(line =>
+    line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v =>
+      v.replace(/^"+|"+$/g, "").trim()
+    )
+  );
 }
 
 function buildCsvUrl(sheet, range) {
-    return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
 function parseScore(val) {
-    if (!val) return NaN;
-    const num = parseFloat(val.replace(",", "."));
-    return isNaN(num) ? NaN : num;
+  if (!val) return NaN;
+  const num = Number(val.replace(",", ".").trim());
+  return Number.isFinite(num) ? num : NaN;
 }
 
-// MAIN TABLE PARSER (fixes everything)
-function parseTable(rows, index) {
-    rows = normalizeRows(rows);
+// ---------- ЗАГРУЗКА ОДНОЙ ТАБЛИЦЫ ИЗ ДИАПАЗОНА ----------
 
-    const left = (index % 2 === 1);  
-    const offset = left ? 0 : 3;      
+async function loadTable(sheet, range, index, gen) {
+  try {
+    const res = await fetch(buildCsvUrl(sheet, range));
+    if (!res.ok) throw new Error("network");
+    const text = await res.text();
 
-    const COL_FIO = offset;
-    const COL_SCORE = offset + 1;
+    // если уже началась новая загрузка — эту игнорируем
+    if (gen !== loadGeneration) return null;
 
-    const hasData = rows.some(r => (r[COL_FIO] || r[COL_SCORE]));
-    if (!hasData) {
-        return `
+    let rows = parseCSV(text)
+      .filter(r => r.some(c => c !== "")); // убираем полностью пустые строки
+
+    if (rows.length < 2) {
+      return `
         <div class="table-box">
-            <div class="table-title">Таблица ${index}</div>
-            <div class="apparatus" style="color:#999;">Нет данных</div>
+          <div class="table-title">Таблица ${index}</div>
+          <div class="apparatus" style="color:#999;">Нет данных</div>
         </div>`;
     }
 
-    let apparatus = "";
-    let headerIdx = null;
+    // 1) первая строка диапазона — название снаряда
+    const apparatusText = rows[0][0] || "Снаряд";
 
-    // find first non-empty for apparatus
-    for (let i = 0; i < rows.length; i++) {
-        if (rows[i][COL_FIO]) {
-            apparatus = rows[i][COL_FIO];
-            headerIdx = i + 1;
-            break;
-        }
-    }
-    if (!apparatus) apparatus = "Снаряд";
+    // 2) вторая строка — заголовок "ФИО | ОЦЕНКА"
+    const headerRow   = rows[1] || [];
+    const nameHeader  = headerRow[0] || "ФИО";
+    const scoreHeader = headerRow[1] || "ОЦЕНКА";
 
-    const headerRow = rows[headerIdx] || [];
-    const nameHeader = headerRow[COL_FIO] || "ФИО";
-    const scoreHeader = headerRow[COL_SCORE] || "ОЦЕНКА";
+    // 3) остальные строки — участники
+    const participants = rows.slice(2);
 
-    const participants = rows.slice(headerIdx + 1);
-
-    function getScore(r) {
-        return (r[COL_SCORE] && r[COL_SCORE].trim())
-            ? r[COL_SCORE].trim()
-            : "-";
-    }
-
+    // находим максимальную оценку
     let maxScore = -Infinity;
     participants.forEach(r => {
-        const s = parseScore(getScore(r));
-        if (!isNaN(s) && s > maxScore) maxScore = s;
+      const s = parseScore(r[1]);
+      if (!isNaN(s) && s > maxScore) maxScore = s;
     });
 
+    // формируем HTML
     let html = `
-    <div class="table-box">
+      <div class="table-box">
         <div class="table-title">Таблица ${index}</div>
-        <div class="apparatus">${apparatus}</div>
+        <div class="apparatus">${apparatusText}</div>
         <table>
-            <thead>
-                <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
-            </thead>
-            <tbody>
+          <thead>
+            <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
+          </thead>
+          <tbody>
     `;
 
     participants.forEach(r => {
-        const fio = r[COL_FIO] || "-";
-        const score = getScore(r);
-        const num = parseScore(score);
-        const isGold = (!isNaN(num) && Math.abs(num - maxScore) < 1e-6);
+      const fio   = (r[0] || "-").trim();
+      let score   = (r[1] || "").trim();
+      const num   = parseScore(score);
+      const isGold = (!isNaN(num) && Math.abs(num - maxScore) < 1e-6);
 
-        html += `
+      if (!score || isNaN(num)) score = "-";
+
+      html += `
         <tr class="${isGold ? "gold" : ""}">
-            <td>${fio}</td>
-            <td>${score}</td>
-        </tr>`;
+          <td>${fio}</td>
+          <td>${score}</td>
+        </tr>
+      `;
     });
 
-    html += "</tbody></table></div>";
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+
     return html;
+
+  } catch (e) {
+    console.error("loadTable error:", e);
+    return `
+      <div class="table-box">
+        <div class="table-title">Таблица ${index}</div>
+        <div class="apparatus" style="color:#c00;">Ошибка загрузки</div>
+      </div>`;
+  }
 }
 
-async function loadTable(sheet, range, index, gen) {
-    try {
-        const res = await fetch(buildCsvUrl(sheet, range));
-        if (!res.ok) throw new Error("Ошибка сети");
-        const text = await res.text();
-        if (gen !== loadGeneration) return null;
-
-        let rows = parseCSV(text).filter(r => r.some(c => c !== ""));
-        return parseTable(rows, index);
-
-    } catch {
-        return `
-        <div class="table-box">
-            <div class="table-title">Таблица ${index}</div>
-            <div class="apparatus" style="color:#c00;">Ошибка загрузки</div>
-        </div>`;
-    }
-}
+// ---------- ОТРИСОВКА СТРАНИЦЫ С 2 ТАБЛИЦАМИ ----------
 
 function renderPage() {
-    if (!allTables.length) {
-        container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
-        return;
-    }
+  if (!allTables.length) {
+    container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
+    return;
+  }
 
-    const totalPages = Math.ceil(allTables.length / PAGE_SIZE);
-    if (pageIndex >= totalPages) pageIndex = 0;
+  const totalPages = Math.ceil(allTables.length / PAGE_SIZE);
+  if (pageIndex >= totalPages) pageIndex = 0;
 
-    const start = pageIndex * PAGE_SIZE;
-    const slice = allTables.slice(start, start + PAGE_SIZE);
+  const start = pageIndex * PAGE_SIZE;
+  const slice = allTables.slice(start, start + PAGE_SIZE);
 
-    container.style.gridTemplateColumns = `repeat(${slice.length},1fr)`;
-    container.innerHTML = slice.join("");
+  container.style.gridTemplateColumns = `repeat(${slice.length}, 1fr)`;
+  container.innerHTML = slice.join("");
 
-    pageIndex++;
+  pageIndex++;
 }
 
-async function refreshTables() {
-    if (!currentStream) return;
-    const cfg = STREAMS[currentStream];
-    const gen = ++loadGeneration;
+// ---------- ПОЛНАЯ ПЕРЕЗАГРУЗКА ТАБЛИЦ ДЛЯ ПОТОКА ----------
 
-    const tables = [];
-    let idx = 1;
+async function loadAllTablesForStream(stream) {
+  const cfg = STREAMS[stream];
+  if (!cfg) return;
 
-    for (let range of cfg.ranges) {
-        tables.push(await loadTable(cfg.sheet, range, idx++, gen));
-        tables.push(await loadTable(cfg.sheet, range, idx++, gen));
-    }
+  const gen = ++loadGeneration;
 
-    if (gen !== loadGeneration) return;
-    allTables = tables;
+  const promises = cfg.ranges.map((range, idx) =>
+    loadTable(cfg.sheet, range, idx + 1, gen)
+  );
+
+  const tables = await Promise.all(promises);
+  if (gen !== loadGeneration) return; // уже другая загрузка началась
+
+  allTables = tables;
+  pageIndex = 0;
+  renderPage();
 }
+
+// ---------- ОБРАБОТКА ВЫБОРА ПОТОКА ----------
 
 async function renderStream(stream) {
-    currentStream = stream;
-    container.innerHTML = "<p style='text-align:center;'>Загрузка...</p>";
+  currentStream = stream;
+  container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
 
-    clearInterval(rotateTimer);
-    clearInterval(refreshTimer);
+  clearInterval(rotateTimer);
+  clearInterval(refreshTimer);
 
-    const cfg = STREAMS[stream];
-    const gen = ++loadGeneration;
+  await loadAllTablesForStream(stream);
 
-    const tables = [];
-    let idx = 1;
-
-    for (let range of cfg.ranges) {
-        tables.push(await loadTable(cfg.sheet, range, idx++, gen));
-        tables.push(await loadTable(cfg.sheet, range, idx++, gen));
-    }
-
-    if (gen !== loadGeneration) return;
-
-    allTables = tables;
-    pageIndex = 0;
-    renderPage();
-
+  if (allTables.length > PAGE_SIZE) {
     rotateTimer = setInterval(renderPage, ROTATE_MS);
-    refreshTimer = setInterval(refreshTables, REFRESH_MS);
+  }
+  refreshTimer = setInterval(() => {
+    if (currentStream) loadAllTablesForStream(currentStream);
+  }, REFRESH_MS);
 }
 
 select.addEventListener("change", () => {
-    const s = select.value;
-    if (s) renderStream(s);
+  const s = select.value;
+  if (s) renderStream(s);
 });
 </script>
 
