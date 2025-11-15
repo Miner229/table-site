@@ -103,12 +103,14 @@ table {
 
 th, td {
     border: 1px solid #dce2e9;
-    padding: 8px;
+    padding: 18px 14px; /* увеличиваем вертикальный padding */
     text-align: center;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
-    word-break: break-word;
+    max-width: 1px;
+    overflow-wrap: break-word;
 }
+
 
 th {
     background: #e6ecf5;
@@ -129,7 +131,7 @@ tbody tr:nth-child(even) td {
         grid-template-columns: 1fr;
         padding: 10px;
     }
-    th, td { font-size: 14px; padding: 6px; }
+    th, td { font-size: 16px; padding: 12px 8px; }
     .apparatus { font-size: 16px; padding: 8px; }
 }
 
