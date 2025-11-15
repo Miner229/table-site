@@ -195,36 +195,8 @@ function parseCSV(text) {
 
 
 // ===============================
-//     ПОИСК ЗАГОЛОВКА
+//     ПОТОЧНЫЕ ДАННЫЕ
 // ===============================
-function findHeaderIndex(rows) {
-    for (let i = 0; i < rows.length; i++) {
-        const col1 = rows[i][0]?.toLowerCase().replace(/\s+/g, "") || "";
-        const col2 = rows[i][1]?.toLowerCase().replace(/\s+/g, "") || "";
-
-        if (col1.includes("фио")) return i;
-        if (col2.includes("оценка") || col2.includes("балл")) return i;
-    }
-    return -1;
-}
-
-
-// ===============================
-//     ПОИСК СТРОКИ СНАРЯДА
-// ===============================
-function extractApparatus(rows, headerIndex) {
-    // если строка заголовка не первая → первая строка = снаряд
-    if (headerIndex > 0) {
-        const text = rows[0].join(" ")
-            .replace(/фио/gi, "")
-            .replace(/оценка/gi, "")
-            .trim();
-        if (text) return text;
-    }
-    return "";
-}
-
-
 const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
 const STREAMS = {
@@ -253,7 +225,7 @@ let loadGeneration = 0;
 
 
 // ===============================
-//     URL CSV
+//   URL для CSV Google Sheets
 // ===============================
 function buildCsvUrl(sheet, range) {
     return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
@@ -261,7 +233,7 @@ function buildCsvUrl(sheet, range) {
 
 
 // ===============================
-//     Загрузка таблицы
+//   ЗАГРУЗКА И РАЗБОР ТАБЛИЦЫ
 // ===============================
 async function loadTable(sheet, range, index, gen) {
     try {
@@ -273,45 +245,75 @@ async function loadTable(sheet, range, index, gen) {
 
         let rows = parseCSV(text);
 
+        // убираем полностью пустые строки
         rows = rows.filter(r => !(r.length === 0 || r.every(c => c.trim() === "")));
 
         if (!rows.length) throw new Error("Нет данных");
 
-        const headerIndex = findHeaderIndex(rows);
-        const apparatusText = extractApparatus(rows, headerIndex) || "Снаряд";
+        // ===============================
+        // 1. ОПРЕДЕЛЕНИЕ СТРОКИ СНАРЯДА
+        // ===============================
+        let apparatusText = "";
+        if (rows.length > 0) {
+            const first = rows[0].join(" ").trim();
+            if (!/\d/.test(first)) {       
+                apparatusText = first;    
+                rows = rows.slice(1);    
+            }
+        }
 
-        let hdr = headerIndex !== -1 ? rows[headerIndex] : ["ФИО", "Оценка"];
-        const nameHeader = hdr[0] || "ФИО";
-        const scoreHeader = hdr[1] || "Оценка";
+        // ===============================
+        // 2. ПОИСК ЗАГОЛОВКА
+        // ===============================
+        let headerIndex = rows.findIndex(r => {
+            const c1 = (r[0] || "").toLowerCase().replace(/\s+/g,"");
+            const c2 = (r[1] || "").toLowerCase().replace(/\s+/g,"");
+            return c1.includes("фио") || c2.includes("оценка") || c2.includes("балл");
+        });
 
-        const participants = rows.slice(headerIndex + 1);
+        // ЕСЛИ ЗАГОЛОВКА НЕТ → СОЗДАЁМ ЕГО
+        if (headerIndex === -1) {
+            rows.unshift(["ФИО", "ОЦЕНКА"]);
+            headerIndex = 0;
+        }
 
-        // Ищем максимальную оценку
+        let headerRow = rows[headerIndex];
+        let nameHeader = headerRow[0] || "ФИО";
+        let scoreHeader = headerRow[1] || "Оценка";
+
+        // УЧАСТНИКИ — ВСЁ НИЖЕ
+        let participants = rows.slice(headerIndex + 1);
+
+        // ===============================
+        // 3. ПОИСК МАКСИМАЛЬНОЙ ОЦЕНКИ
+        // ===============================
         let maxScore = -Infinity;
         participants.forEach(r => {
             const num = parseScore(r[1] || "");
             if (!isNaN(num) && num > maxScore) maxScore = num;
         });
 
-        // Формируем HTML
+        // ===============================
+        // 4. СБОР HTML
+        // ===============================
         let html = `<div class="table-box">
             <div class="table-title">Таблица ${index}</div>
-            <div class="apparatus">${apparatusText}</div>
+            <div class="apparatus">${apparatusText || "Снаряд"}</div>
             <table>
             <thead><tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr></thead>
             <tbody>`;
 
         participants.forEach(row => {
             const fio = (row[0] || "-").trim();
-            let score = (row[1] || "").trim();
-            const num = parseScore(score);
+            let rawScore = (row[1] || "").trim();
+            const num = parseScore(rawScore);
             const isGold = !isNaN(num) && Math.abs(num - maxScore) < 0.000001;
 
-            if (!score || isNaN(num)) score = "-";
+            if (!rawScore || isNaN(num)) rawScore = "-";
 
             html += `<tr class="${isGold ? "gold" : ""}">
                         <td>${fio}</td>
-                        <td>${score}</td>
+                        <td>${rawScore}</td>
                     </tr>`;
         });
 
@@ -328,7 +330,7 @@ async function loadTable(sheet, range, index, gen) {
 
 
 // ===============================
-//     Страницы
+//     ОТРИСОВКА СТРАНИЦ
 // ===============================
 function renderPage() {
     if (!allTables.length) {
@@ -348,7 +350,7 @@ function renderPage() {
 
 
 // ===============================
-//     Обновление данных
+//     АВТО-ОБНОВЛЕНИЕ
 // ===============================
 async function refreshTables() {
     if (!currentStream) return;
@@ -367,7 +369,7 @@ async function refreshTables() {
 
 
 // ===============================
-//     Отображение потока
+//     ЗАГРУЗКА ПОТОКА
 // ===============================
 async function renderStream(stream) {
     const cfg = STREAMS[stream];
@@ -395,19 +397,18 @@ async function renderStream(stream) {
     pageIndex = 0;
     renderPage();
 
-    if (allTables.length > PAGE_SIZE) {
-        rotateTimer = setInterval(renderPage, ROTATE_MS);
-    }
+    if (allTables.length > PAGE_SIZE) rotateTimer = setInterval(renderPage, ROTATE_MS);
     refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
 
 // ===============================
-//     Слушатель селекта
+//     ВЫБОР ПОТОКА
 // ===============================
 select.addEventListener("change", () => {
     if (select.value) renderStream(select.value);
 });
+
 
 
 </script>
