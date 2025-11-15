@@ -214,35 +214,29 @@ async function loadTable(sheet, range, index, gen) {
     const res = await fetch(buildCsvUrl(sheet, range));
     if (!res.ok) throw new Error("Ошибка сети");
     const text = await res.text();
-    if (gen !== loadGeneration) return null;
+    if (gen !== loadGeneration) return ""; // вернём пустую строку, а не null
 
     const rawRows = parseCSV(text);
     const rows = rawRows.filter(r => r.some(c => c !== ""));
-
     if (!rows.length) throw new Error("Нет данных");
 
-    // Определяем название снаряда
     let apparatusText = rows[0].join(" ").replace(/фио/gi,"").replace(/оценка/gi,"").trim();
     if (!apparatusText) apparatusText = "Снаряд";
 
-    // Находим индекс строки заголовка
     let headerIndex = rows.findIndex(r => r[0] && /фио/i.test(r[0]) && r[1] && /оценка/i.test(r[1]));
     if (headerIndex === -1) headerIndex = 1;
-
     let headerRow = rows[headerIndex] || [];
     let nameHeader = headerRow[0] || "ФИО";
     let scoreHeader = headerRow[1] || "Оценка";
 
     let participants = rows.slice(headerIndex + 1);
 
-    // --- находим максимальное значение среди числовых оценок ---
     let maxScore = -Infinity;
     participants.forEach(r => {
       const num = parseFloat((r[1] || "").replace(",", "."));
       if (!isNaN(num) && num > maxScore) maxScore = num;
     });
 
-    // --- строим HTML таблицы ---
     let html = `<div class="table-box">
                   <div class="table-title">Таблица ${index}</div>
                   <div class="apparatus">${apparatusText}</div>
@@ -253,13 +247,9 @@ async function loadTable(sheet, range, index, gen) {
     participants.forEach(row => {
       const fio = (row[0] || "").trim() || "-";
       let scoreText = (row[1] || "").trim();
-
       const num = parseFloat(scoreText.replace(",", "."));
       const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
-
-      // Пустые или нечисловые оценки показываем как "-"
       if (scoreText === "" || isNaN(num)) scoreText = "-";
-
       html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
     });
 
@@ -273,6 +263,7 @@ async function loadTable(sheet, range, index, gen) {
             </div>`;
   }
 }
+
 
 
 function renderPage() {
