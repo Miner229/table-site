@@ -250,6 +250,23 @@ async function loadTable(sheet, range, index, gen) {
       html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
     });
 
+    participants.forEach(row => {
+      const fio = (row[0] || "").trim();
+      let scoreText = (row[1] || "").trim();
+      if (!fio) return;
+
+    // Преобразуем запятую в точку и парсим число
+      const num = parseFloat(scoreText.replace(",", "."));
+    
+    // Если не число, показываем "-"
+      if (isNaN(num)) scoreText = "-";
+    
+    // Проверка на максимальное число с небольшим допуском
+      const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
+
+      html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
+    });
+
     html += `</tbody></table></div>`;
     return html;
 
