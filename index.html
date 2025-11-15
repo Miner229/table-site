@@ -218,7 +218,7 @@ function buildCsvUrl(sheet, range) {
          `&range=${range}&cacheBust=${Date.now()}`;
 }
 
-// --- загружаем таблицу ---
+// --- ЗАМЕНЕННАЯ ФУНКЦИЯ loadTable ---
 async function loadTable(sheet, range, index, gen) {
   try {
     const res = await fetch(buildCsvUrl(sheet, range));
@@ -241,7 +241,7 @@ async function loadTable(sheet, range, index, gen) {
 
     let participants = rows.slice(headerIndex + 1);
 
-    // находим максимальную оценку
+    // находим максимальную оценку корректно
     let maxScore = -Infinity;
     participants.forEach(r => {
       const num = parseScore(r[1]);
@@ -258,7 +258,7 @@ async function loadTable(sheet, range, index, gen) {
     participants.forEach(row => {
       const fio = (row[0] || "").trim();
       let scoreText = (row[1] || "").trim();
-      if (!fio) return;
+      if (!fio && !scoreText) return;
       const num = parseScore(scoreText);
       if (isNaN(num)) scoreText = "-";
       const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
