@@ -133,19 +133,33 @@
   }
 
   @media (max-width: 900px) {
-    main {
-      grid-template-columns: 1fr;
-    }
-
-    th, td {
-      font-size: 16px;
-      padding: 10px;
-    }
-
-    .apparatus {
-      font-size: 18px;
-    }
+  main {
+    grid-template-columns: 1fr; /* одна колонка */
+    padding: 10px;
+    overflow-y: auto;
   }
+
+  .table-box {
+    font-size: 14px;
+  }
+
+  th, td {
+    font-size: 16px;
+    padding: 8px;
+    word-wrap: break-word; /* перенос длинного текста */
+  }
+
+  .apparatus {
+    font-size: 18px;
+    padding: 10px;
+  }
+
+  table {
+    table-layout: auto;  /* авто подстройка ширины столбцов */
+    width: 100%;
+  }
+}
+
 
   @media (min-width: 1800px) {
     th, td { font-size: 22px; padding: 18px; }
