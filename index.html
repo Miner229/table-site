@@ -212,7 +212,6 @@ function parseScore(val) {
     return isNaN(num) ? NaN : num;
 }
 
-// === Load one table ===
 async function loadTable(sheet, range, index, gen) {
     try {
         const res = await fetch(buildCsvUrl(sheet, range));
@@ -223,33 +222,29 @@ async function loadTable(sheet, range, index, gen) {
         let rows = parseCSV(text).filter(r => r.some(c => c !== ""));
         if (rows.length < 2) throw new Error("Нет данных");
 
-        // === ЧИТАЕМ СТРОГО КАК В GOOGLE SHEET ===
-
-        // 1. Снаряд
+        // === 1) Первая строка диапазона — это название снаряда
         const apparatusText = rows[0][0] || "Снаряд";
 
-        // 2. Заголовок ФИО / ОЦЕНКА
-        const headerRow = rows[1];
-        const nameHeader = headerRow[0] || "ФИО";
-        const scoreHeader = headerRow[1] || "ОЦЕНКА";
+        // === 2) Вторая строка — это ФИО и ОЦЕНКА
+        const nameHeader = rows[1][0] || "ФИО";
+        const scoreHeader = rows[1][1] || "ОЦЕНКА";
 
-        // 3. Участники
+        // === 3) Остальные строки — участники
         const participants = rows.slice(2);
 
-        function getScore(r) {
-            if (r[1] && r[1].trim()) return r[1].trim();
-            if (r[2] && r[2].trim()) return r[2].trim();
-            return "-";
+        // === 4) Оценка ВСЕГДА берётся из второго столбца
+        function getScore(row) {
+            return row[1] && row[1].trim() ? row[1].trim() : "-";
         }
 
-        // 4. Максимальный балл
+        // === 5) Ищем максимальный балл корректно
         let maxScore = -Infinity;
         participants.forEach(r => {
-            const s = parseScore(getScore(r));
-            if (!isNaN(s) && s > maxScore) maxScore = s;
+            const val = parseFloat(getScore(r).replace(",", "."));
+            if (!isNaN(val) && val > maxScore) maxScore = val;
         });
 
-        // 5. Генерация HTML
+        // === 6) Формируем HTML строго в том же порядке
         let html = `
         <div class="table-box">
             <div class="table-title">Таблица ${index}</div>
@@ -264,8 +259,8 @@ async function loadTable(sheet, range, index, gen) {
         participants.forEach(r => {
             const fio = r[0] || "-";
             const score = getScore(r);
-            const num = parseScore(score);
-            const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
+            const num = parseFloat(score.replace(",", "."));
+            const isGold = (!isNaN(num) && Math.abs(num - maxScore) < 1e-6);
 
             html += `
             <tr class="${isGold ? "gold" : ""}">
@@ -277,7 +272,7 @@ async function loadTable(sheet, range, index, gen) {
         html += `</tbody></table></div>`;
         return html;
 
-    } catch {
+    } catch (err) {
         return `
         <div class="table-box">
             <div class="table-title">Таблица ${index}</div>
@@ -285,6 +280,7 @@ async function loadTable(sheet, range, index, gen) {
         </div>`;
     }
 }
+
 
 // === Render one page (2 таблицы) ===
 function renderPage() {
