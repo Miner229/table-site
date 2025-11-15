@@ -140,6 +140,7 @@ tbody tr:nth-child(even) td {
 }
 </style>
 </head>
+
 <body>
 <header>
     <div class="header-title">
@@ -189,138 +190,200 @@ let refreshTimer = null;
 let currentStream = null;
 let loadGeneration = 0;
 
+
+// ===============================
+//   ПАРСЕР ОЦЕНОК (поддержка 0.001)
+// ===============================
+function parseScore(value) {
+    if (!value) return NaN;
+
+    // убираем пробелы, заменяем запятые
+    value = value.replace(/\s+/g, "").replace(",", ".").trim();
+
+    const num = Number(value);
+    return Number.isFinite(num) ? num : NaN;
+}
+
+
+// ===============================
+//           CSV parser
+// ===============================
 function parseCSV(text) {
-  return text
-    .trim()
-    .split(/\r?\n/)
-    .map(line => line
-      .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-      .map(v => v.replace(/^"+|"+$/g, "").trim())
+    return text.trim().split(/\r?\n/).map(line =>
+        line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v => v.replace(/^"+|"+$/g,"").trim())
     );
 }
 
+
+// ===============================
+//     URL генератор CSV
+// ===============================
 function buildCsvUrl(sheet, range) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
+    return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
+
+// ===============================
+//     Загрузка и сбор таблиц
+// ===============================
 async function loadTable(sheet, range, index, gen) {
-  try {
-    const res = await fetch(buildCsvUrl(sheet, range));
-    if (!res.ok) throw new Error("Ошибка сети");
-    const text = await res.text();
-    if (gen !== loadGeneration) return null;
+    try {
+        const res = await fetch(buildCsvUrl(sheet, range));
+        if (!res.ok) throw new Error("Ошибка сети");
 
-    const rawRows = parseCSV(text);
-    const rows = rawRows.filter(r => r.some(c => c !== ""));
-    if (!rows.length) throw new Error("Нет данных");
+        const text = await res.text();
+        if (gen !== loadGeneration) return null;
 
-    let apparatusText = rows[0].join(" ").replace(/фио/gi,"").replace(/оценка/gi,"").trim();
-    if (!apparatusText) apparatusText = "Снаряд";
+        const rawRows = parseCSV(text);
+        const rows = rawRows.filter(r => r.some(c => c !== ""));
+        if (!rows.length) throw new Error("Нет данных");
 
-    let headerIndex = rows.findIndex(r => r[0] && /фио/i.test(r[0]) && r[1] && /оценка/i.test(r[1]));
-    if (headerIndex === -1) headerIndex = 1;
-    let headerRow = rows[headerIndex] || [];
-    let nameHeader = headerRow[0] || "ФИО";
-    let scoreHeader = headerRow[1] || "Оценка";
+        // Название снаряда
+        let apparatusText = rows[0].join(" ").replace(/фио/gi,"").replace(/оценка/gi,"").trim();
+        if (!apparatusText) apparatusText = "Снаряд";
 
-    let participants = rows.slice(headerIndex + 1);
+        // Заголовки
+        let headerIndex = rows.findIndex(r => r[0] && /фио/i.test(r[0]) && r[1] && /оценка/i.test(r[1]));
+        if (headerIndex === -1) headerIndex = 1;
 
-    let maxScore = -Infinity;
-    participants.forEach(r => {
-      const num = parseFloat((r[1] || "").replace(",", "."));
-      if (!isNaN(num) && num > maxScore) maxScore = num;
-    });
+        let headerRow = rows[headerIndex] || [];
+        let nameHeader = headerRow[0] || "ФИО";
+        let scoreHeader = headerRow[1] || "Оценка";
 
-    let html = `<div class="table-box">
-                  <div class="table-title">Таблица ${index}</div>
-                  <div class="apparatus">${apparatusText}</div>
-                  <table>
-                    <thead><tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr></thead>
-                    <tbody>`;
+        let participants = rows.slice(headerIndex + 1);
 
-    participants.forEach(row => {
-      const fio = (row[0] || "").trim() || "-";
-      let scoreText = (row[1] || "").trim();
-      const num = parseFloat(scoreText.replace(",", "."));
-      const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
-      if (scoreText === "" || isNaN(num)) scoreText = "-";
-      html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
-    });
+        // ===============================
+        //   Вычисление максимального балла
+        // ===============================
+        let maxScore = -Infinity;
+        participants.forEach(r => {
+            const num = parseScore(r[1] || "");
+            if (!isNaN(num) && num > maxScore) maxScore = num;
+        });
 
-    html += `</tbody></table></div>`;
-    return html;
+        // ===============================
+        //   Генерация HTML таблицы
+        // ===============================
+        let html = `<div class="table-box">
+            <div class="table-title">Таблица ${index}</div>
+            <div class="apparatus">${apparatusText}</div>
+            <table>
+            <thead><tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr></thead>
+            <tbody>`;
 
-  } catch (err) {
-    return `<div class="table-box">
-              <div class="table-title">Таблица ${index}</div>
-              <div class="apparatus" style="color:#c00;">Нет данных</div>
-            </div>`;
-  }
+        participants.forEach(row => {
+            const fio = (row[0] || "-").trim();
+            let rawScore = (row[1] || "").trim();
+
+            const num = parseScore(rawScore);
+            const isGold = !isNaN(num) && Math.abs(num - maxScore) < 0.000001;
+
+            if (!rawScore || isNaN(num)) rawScore = "-";
+
+            html += `<tr class="${isGold ? "gold" : ""}">
+                        <td>${fio}</td>
+                        <td>${rawScore}</td>
+                    </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+        return html;
+
+    } catch (err) {
+        return `<div class="table-box">
+            <div class="table-title">Таблица ${index}</div>
+            <div class="apparatus" style="color:#c00;">Нет данных</div>
+        </div>`;
+    }
 }
 
+
+// ===============================
+//       ОТРИСОВКА СТРАНИЦ
+// ===============================
 function renderPage() {
-  if (!allTables.length) {
-    container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
-    return;
-  }
+    if (!allTables.length) {
+        container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
+        return;
+    }
 
-  const totalPages = Math.ceil(allTables.length / PAGE_SIZE);
-  if (pageIndex >= totalPages) pageIndex = 0;
+    const totalPages = Math.ceil(allTables.length / PAGE_SIZE);
+    if (pageIndex >= totalPages) pageIndex = 0;
 
-  const start = pageIndex * PAGE_SIZE;
-  const slice = allTables.slice(start, start + PAGE_SIZE);
+    const start = pageIndex * PAGE_SIZE;
+    const slice = allTables.slice(start, start + PAGE_SIZE);
 
-  container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 2)}, 1fr)`;
-  container.innerHTML = slice.join("");
+    container.style.gridTemplateColumns = `repeat(${Math.min(slice.length,2)},1fr)`;
+    container.innerHTML = slice.join("");
 
-  pageIndex++;
+    pageIndex++;
 }
 
+
+// ===============================
+//      ПЕРЕЗАГРУЗКА ТАБЛИЦ
+// ===============================
 async function refreshTables() {
-  if (!currentStream) return;
-  const cfg = STREAMS[currentStream];
-  const gen = ++loadGeneration;
-  const tables = [];
-  for (let i = 0; i < cfg.ranges.length; i++) {
-    const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
-    tables.push(html);
-  }
-  if (gen !== loadGeneration) return;
-  allTables = tables;
+    if (!currentStream) return;
+    const cfg = STREAMS[currentStream];
+    const gen = ++loadGeneration;
+    const tables = [];
+
+    for (let i = 0; i < cfg.ranges.length; i++) {
+        const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
+        tables.push(html);
+    }
+
+    if (gen !== loadGeneration) return;
+    allTables = tables;
 }
 
+
+// ===============================
+//       ВЫБОР ПОТОКА
+// ===============================
 async function renderStream(stream) {
-  const cfg = STREAMS[stream];
-  currentStream = stream;
-  if (!cfg) {
-    container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных</p>";
-    return;
-  }
+    const cfg = STREAMS[stream];
+    currentStream = stream;
 
-  container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
-  clearInterval(rotateTimer);
-  clearInterval(refreshTimer);
+    if (!cfg) {
+        container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных</p>";
+        return;
+    }
 
-  const gen = ++loadGeneration;
-  const tables = [];
-  for (let i = 0; i < cfg.ranges.length; i++) {
-    const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
-    tables.push(html);
-  }
-  if (gen !== loadGeneration) return;
+    container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
 
-  allTables = tables;
-  pageIndex = 0;
-  renderPage();
+    clearInterval(rotateTimer);
+    clearInterval(refreshTimer);
 
-  if (allTables.length > PAGE_SIZE) rotateTimer = setInterval(renderPage, ROTATE_MS);
-  refreshTimer = setInterval(refreshTables, REFRESH_MS);
+    const gen = ++loadGeneration;
+    const tables = [];
+
+    for (let i = 0; i < cfg.ranges.length; i++) {
+        const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
+        tables.push(html);
+    }
+
+    if (gen !== loadGeneration) return;
+
+    allTables = tables;
+    pageIndex = 0;
+    renderPage();
+
+    if (allTables.length > PAGE_SIZE) rotateTimer = setInterval(renderPage, ROTATE_MS);
+    refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
+
+// ===============================
+//   Слушатель выбора потока
+// ===============================
 select.addEventListener("change", () => {
-  const s = select.value;
-  if (s) renderStream(s);
+    const s = select.value;
+    if (s) renderStream(s);
 });
+
 </script>
+
 </body>
 </html>
