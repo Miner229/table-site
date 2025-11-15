@@ -10,7 +10,7 @@
     margin: 0;
     background: #f7f9fb;
     font-family: "Segoe UI", Arial, sans-serif;
-    overflow: hidden; /* важно — запрещаем прокрутку body */
+    overflow: hidden;
   }
 
   header {
@@ -58,17 +58,25 @@
     font-weight: 600;
   }
 
-  /* --- ОСНОВНОЕ: контейнер прокручиваемый на мобилке --- */
   main {
     position: absolute;
     top: 100px; bottom: 0; left: 0; right: 0;
     padding: 14px;
     box-sizing: border-box;
-    overflow-y: auto;          /* ДЛЯ ТЕЛЕФОНОВ — разрешаем скролл */
+    overflow-y: auto;
     overflow-x: hidden;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 14px;
+  }
+
+  /* --- АДАПТАЦИЯ ПОД ЭКРАН ПК --- */
+  @media (min-width: 901px) {
+    main {
+      height: calc(100vh - 100px);
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
   }
 
   .table-box {
