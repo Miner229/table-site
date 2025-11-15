@@ -254,18 +254,13 @@ participants.forEach(r => {
 
   participants.forEach(row => {
     const fio = (row[0] || "").trim();
-    let scoreText = (row[1] || "").trim();
+    const scoreText = (row[1] || "").trim();
+    if (!fio && !scoreText) return; // <-- здесь может отсеиваться целое число
     const num = parseFloat(scoreText.replace(",", "."));
-
-    // если ФИО есть, но число невалидное, показываем "0" или "-"
-    if (!fio) return;
-
-    if (isNaN(num)) scoreText = "-";
-
-    const isGold = !isNaN(num) && num === Math.max(...participants.map(r => parseFloat((r[1]||"0").replace(",", "."))));
-
+    const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
     html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
 });
+
 
 
 
