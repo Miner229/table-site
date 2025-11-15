@@ -66,6 +66,7 @@ main {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 14px;
+    overflow-y: auto; /* внутренний скролл для длинных таблиц */
 }
 
 .table-box {
@@ -108,21 +109,14 @@ th, td {
     font-size: 18px;
     font-weight: 700;
     max-width: none;
-    overflow-wrap: normal;
-    white-space: nowrap;
-    padding: 12px 10px; /* можно чуть увеличить или уменьшить для подгонки */
-}
-
-/* Высота строки подстраивается под кол-во участников */
-tbody tr {
-    height: calc((100vh - 100px - 12px*2 - 12px) / 8); 
-    /* 100vh - header - padding таблицы, делим на макс кол-во участников */
+    overflow-wrap: break-word;
+    white-space: normal;
+    padding: 12px 10px; /* чуть меньше, чтобы поместились все строки */
 }
 
 /* Цвета и оформление */
 th {
     background: #e6ecf5;
-    font-size: 18px;
 }
 
 tbody tr:nth-child(even) td {
