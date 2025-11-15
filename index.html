@@ -131,13 +131,24 @@ tbody tr:nth-child(even) td {
 
 @media (max-width: 900px) {
     main {
-        grid-template-columns: 1fr;
-        padding: 10px;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
     }
-    th, td { font-size: 14px; padding: 6px 4px; }
-    .apparatus { font-size: 16px; padding: 8px; }
-    tbody tr { height: 28px; }
+
+    /* Таблица НЕ должна ломаться */
+    table {
+        width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    th, td {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
 }
+
 </style>
 </head>
 
