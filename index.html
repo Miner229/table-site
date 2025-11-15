@@ -170,16 +170,18 @@ tbody tr:nth-child(even) td {
 function parseScore(value) {
     if (!value) return NaN;
 
-    // Удаляем все возможные невидимые символы:
+    // Удаляем ВСЕ возможные невидимые символы: NBSP, BOM, ZWSP, LRM, RLM, разделители строк и т.д.
     value = value
-        .replace(/[\u00A0\u200B\uFEFF]/g, "") // NBSP, Zero-width, BOM
-        .replace(/\s+/g, "")                 // обычные пробелы, табы
-        .replace(",", ".")                   // запятая → точка
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")   // управляющие символы
+        .replace(/[\u00A0\u1680\u180E\u2000-\u200F\u2028\u2029\u202F\u205F\u3000]/g, "") // невидимые пробелы
+        .replace(/\s+/g, "")                           // обычные пробелы
+        .replace(",", ".")                             // запятая → точка
         .trim();
 
     const num = Number(value);
     return Number.isFinite(num) ? num : NaN;
 }
+
 
 
 // ===============================
