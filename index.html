@@ -200,13 +200,13 @@ function parseCSV(text) {
 const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
 const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
-  2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A18:B29","D17:E26","G17:H26"] },
-  3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
-  4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
-  5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E27"] },
-  6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
-  7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
+  1: { sheet: "поток 1", ranges: ["A2:B14"] },
+  2: { sheet: "поток 2", ranges: ["A3:B16"] },
+  3: { sheet: "поток 3", ranges: ["A2:B14"] },
+  4: { sheet: "поток 4", ranges: ["A3:B15"] },
+  5: { sheet: "поток 5", ranges: ["A3:B14"] },
+  6: { sheet: "поток 6", ranges: ["A2:B8"] },
+  7: { sheet: "поток 7", ranges: ["A2:B13"] }
 };
 
 const container = document.getElementById("tables");
@@ -248,44 +248,27 @@ async function loadTable(sheet, range, index, gen) {
         // убираем полностью пустые строки
         rows = rows.filter(r => !(r.length === 0 || r.every(c => c.trim() === "")));
 
-        if (!rows.length) throw new Error("Нет данных");
+        if (rows.length < 2) throw new Error("Недостаточно данных");
 
         // ===============================
-        // 1. ОПРЕДЕЛЕНИЕ СТРОКИ СНАРЯДА
+        // 1. СНАРЯД — СТРОГО 1-я строка
         // ===============================
-        let apparatusText = "";
-        if (rows.length > 0) {
-            const first = rows[0].join(" ").trim();
-            if (!/\d/.test(first)) {       
-                apparatusText = first;    
-                rows = rows.slice(1);    
-            }
-        }
+        const apparatusText = rows[0].join(" ").trim() || "Снаряд";
 
         // ===============================
-        // 2. ПОИСК ЗАГОЛОВКА
+        // 2. ЗАГОЛОВОК — СТРОГО 2-я строка
         // ===============================
-        let headerIndex = rows.findIndex(r => {
-            const c1 = (r[0] || "").toLowerCase().replace(/\s+/g,"");
-            const c2 = (r[1] || "").toLowerCase().replace(/\s+/g,"");
-            return c1.includes("фио") || c2.includes("оценка") || c2.includes("балл");
-        });
-
-        // ЕСЛИ ЗАГОЛОВКА НЕТ → СОЗДАЁМ ЕГО
-        if (headerIndex === -1) {
-            rows.unshift(["ФИО", "ОЦЕНКА"]);
-            headerIndex = 0;
-        }
-
-        let headerRow = rows[headerIndex];
-        let nameHeader = headerRow[0] || "ФИО";
-        let scoreHeader = headerRow[1] || "Оценка";
-
-        // УЧАСТНИКИ — ВСЁ НИЖЕ
-        let participants = rows.slice(headerIndex + 1);
+        const headerRow = rows[1];
+        const nameHeader = headerRow[0] || "ФИО";
+        const scoreHeader = headerRow[1] || "ОЦЕНКА";
 
         // ===============================
-        // 3. ПОИСК МАКСИМАЛЬНОЙ ОЦЕНКИ
+        // 3. УЧАСТНИКИ — СТРОКИ С 3-Й
+        // ===============================
+        const participants = rows.slice(2);
+
+        // ===============================
+        // 4. ПОИСК МАКСИМАЛЬНОЙ ОЦЕНКИ
         // ===============================
         let maxScore = -Infinity;
         participants.forEach(r => {
@@ -294,13 +277,15 @@ async function loadTable(sheet, range, index, gen) {
         });
 
         // ===============================
-        // 4. СБОР HTML
+        // 5. СБОР HTML
         // ===============================
         let html = `<div class="table-box">
             <div class="table-title">Таблица ${index}</div>
-            <div class="apparatus">${apparatusText || "Снаряд"}</div>
+            <div class="apparatus">${apparatusText}</div>
             <table>
-            <thead><tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr></thead>
+            <thead>
+                <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
+            </thead>
             <tbody>`;
 
         participants.forEach(row => {
@@ -408,7 +393,6 @@ async function renderStream(stream) {
 select.addEventListener("change", () => {
     if (select.value) renderStream(select.value);
 });
-
 
 
 </script>
