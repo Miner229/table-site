@@ -98,18 +98,20 @@ main {
 table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed;
+    table-layout: fixed; /* фиксированная ширина ячеек */
 }
 
 th, td {
     border: 1px solid #dce2e9;
-    padding: 18px 14px; /* увеличиваем вертикальный padding */
+    padding: 20px 14px; /* увеличиваем вертикальный padding */
     text-align: center;
     font-size: 18px;
     font-weight: 700;
-    max-width: 1px;
-    overflow-wrap: break-word;
+    max-width: none; /* убираем ограничение ширины */
+    overflow-wrap: normal; /* убираем перенос слов */
+    white-space: nowrap; /* текст не переносится на новую строку */
 }
+
 
 
 th {
