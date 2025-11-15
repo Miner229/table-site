@@ -220,31 +220,63 @@ async function loadTable(sheet, range, index, gen) {
         if (gen !== loadGeneration) return null;
 
         let rows = parseCSV(text).filter(r => r.some(c => c !== ""));
-        if (rows.length < 2) throw new Error("Нет данных");
+        if (!rows.length) throw new Error("Нет данных");
 
-        // === 1) Первая строка диапазона — это название снаряда
-        const apparatusText = rows[0][0] || "Снаряд";
+        // Определяем, какую таблицу парсим:
+        // index = 1 → левая таблица (0,1)
+        // index = 2 → правая таблица (3,4)
+        const offset = (index % 2 === 1) ? 0 : 3;
 
-        // === 2) Вторая строка — это ФИО и ОЦЕНКА
-        const nameHeader = rows[1][0] || "ФИО";
-        const scoreHeader = rows[1][1] || "ОЦЕНКА";
+        // Столбцы:
+        const COL_FIO = offset;
+        const COL_SCORE = offset + 1;
 
-        // === 3) Остальные строки — участники
-        const participants = rows.slice(2);
-
-        // === 4) Оценка ВСЕГДА берётся из второго столбца
-        function getScore(row) {
-            return row[1] && row[1].trim() ? row[1].trim() : "-";
+        // Если таблица полностью пуста – возвращаем пустой шаблон
+        const hasAnyData = rows.some(r => r[COL_FIO] || r[COL_SCORE]);
+        if (!hasAnyData) {
+            return `
+            <div class="table-box">
+                <div class="table-title">Таблица ${index}</div>
+                <div class="apparatus" style="color:#999;">Нет данных</div>
+            </div>`;
         }
 
-        // === 5) Ищем максимальный балл корректно
+        // Снаряд = первая НЕ пустая строка в FIO колонке
+        let apparatusText = null;
+        let startIndex = 0;
+
+        for (let i = 0; i < rows.length; i++) {
+            if (rows[i][COL_FIO]) {
+                apparatusText = rows[i][COL_FIO];
+                startIndex = i + 1;
+                break;
+            }
+        }
+        if (!apparatusText) apparatusText = "Снаряд";
+
+        // Заголовок (ФИО | ОЦЕНКА) = следующая строка
+        const headerRow = rows[startIndex] || [];
+        const nameHeader = headerRow[COL_FIO] || "ФИО";
+        const scoreHeader = headerRow[COL_SCORE] || "Оценка";
+
+        // Участники = всё ниже
+        const participants = rows.slice(startIndex + 1);
+
+        // Считываем оценки
+        function getScore(r) {
+            return r[COL_SCORE] && r[COL_SCORE].trim()
+                ? r[COL_SCORE].trim()
+                : "-";
+        }
+
+        // Ищем максимальную оценку
         let maxScore = -Infinity;
         participants.forEach(r => {
-            const val = parseFloat(getScore(r).replace(",", "."));
-            if (!isNaN(val) && val > maxScore) maxScore = val;
+            const s = parseFloat(getScore(r).replace(",", "."));
+            if (!isNaN(s) && s > maxScore) maxScore = s;
         });
 
-        // === 6) Формируем HTML строго в том же порядке
+        // Сборка таблицы
         let html = `
         <div class="table-box">
             <div class="table-title">Таблица ${index}</div>
@@ -257,7 +289,7 @@ async function loadTable(sheet, range, index, gen) {
         `;
 
         participants.forEach(r => {
-            const fio = r[0] || "-";
+            const fio = r[COL_FIO] || "-";
             const score = getScore(r);
             const num = parseFloat(score.replace(",", "."));
             const isGold = (!isNaN(num) && Math.abs(num - maxScore) < 1e-6);
@@ -269,18 +301,17 @@ async function loadTable(sheet, range, index, gen) {
             </tr>`;
         });
 
-        html += `</tbody></table></div>`;
+        html += "</tbody></table></div>";
         return html;
 
     } catch (err) {
         return `
         <div class="table-box">
             <div class="table-title">Таблица ${index}</div>
-            <div class="apparatus" style="color:#c00;">Нет данных</div>
+            <div class="apparatus" style="color:#c00;">Ошибка загрузки</div>
         </div>`;
     }
 }
-
 
 // === Render one page (2 таблицы) ===
 function renderPage() {
