@@ -252,19 +252,22 @@ participants.forEach(r => {
       <thead><tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr></thead>
       <tbody>`;
 
-  participants.forEach(r => {
-    const fio = (r[0]||"").trim();
-    const scoreText = (r[1]||"").trim();
-    if(!fio && !scoreText) return;
+  participants.forEach(row => {
+    const fio = (row[0] || "").trim();
+    const scoreText = (row[1] || "").trim();
+    if (!fio && !scoreText) return;
+
     const num = parseFloat(scoreText.replace(",", "."));
     const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
 
-    html += `<tr class="${(!isNaN(num)&&num===maxScore)?"gold":""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
-  });
+    html += `
+      <tr class="${isGold ? "gold" : ""}">
+        <td>${fio}</td>
+        <td>${scoreText}</td>
+      </tr>
+    `;
+});
 
-  html += `</tbody></table></div>`;
-  return html;
-}
 
 // --- Подгонка высоты контейнера .table-box ---
 function adjustTableBoxHeight() {
