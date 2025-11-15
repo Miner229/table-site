@@ -6,13 +6,11 @@
 <title>ArtVin Cup</title>
 
 <style>
-  html, body {
+  body {
     margin: 0;
-    height: 100%;
-    overflow: hidden;
     background: #f7f9fb;
     font-family: "Segoe UI", Arial, sans-serif;
-    color: #333;
+    overflow: hidden;
   }
 
   header {
@@ -25,269 +23,176 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 40px;
-    z-index: 10;
     box-shadow: 0 3px 10px rgba(0,0,0,.25);
+    z-index: 10;
   }
 
-  .header-title { display: flex; align-items: center; gap: 15px; }
-  header h1 { margin: 0; font-size: 26px; font-weight: 800; }
-
-  .header-title img {
-    height: 80px;
-    border-radius: 6px;
-    background: white;
-    padding: 4px;
-  }
-
-  .stream-select {
-    font-size: 16px;
-    padding: 8px 14px;
-    border: none;
-    border-radius: 6px;
-    color: #007bff;
-    background: white;
-    cursor: pointer;
-    font-weight: 600;
-  }
+  .header-title { display: flex; gap: 15px; align-items: center; }
+  .header-title img { height: 80px; padding: 4px; background: white; border-radius: 6px; }
 
   main {
     position: absolute;
     top: 100px; bottom: 0; left: 0; right: 0;
-    padding: 10px;
     display: grid;
-    gap: 12px;
-    box-sizing: border-box;
     grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    padding: 14px;
+    overflow: hidden;
   }
 
   .table-box {
     background: white;
     border-radius: 12px;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.12);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.15);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .table-title {
     background: #007bff;
     color: white;
     text-align: center;
-    padding: 10px;
-    font-size: 18px;
+    padding: 12px;
+    font-size: 20px;
     font-weight: 900;
   }
 
   .apparatus {
-    padding: 10px;
-    text-align: center;
-    font-size: 18px;
-    font-weight: 800;
-    font-size: 20px;
-    font-weight: 900;
     background: #eef4ff;
+    padding: 12px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 800;
     border-bottom: 1px solid #dce2e9;
   }
-@@ -95,19 +95,19 @@
+
+  table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed;
-    font-size: 16px;
-    font-size: 18px;
+    table-layout: auto;
   }
 
   th, td {
     border: 1px solid #dce2e9;
-    text-align: center;
-    padding: 10px;
     padding: 14px;
+    text-align: center;
+    font-size: 18px;
     font-weight: 700;
   }
 
-  th {
-    background: #e6ecf5;
-    font-size: 18px;
-    font-size: 20px;
-  }
+  th { background: #e6ecf5; font-size: 20px; }
 
-  tbody tr:nth-child(even) td { background: #f8fafc; }
-@@ -118,10 +118,10 @@
-  }
+  tr:nth-child(even) td { background: #f8fafc; }
 
-  @media (min-width: 1800px) {
-    table { font-size: 26px; }
-    th, td { padding: 18px; }
-    .table-title { font-size: 28px; }
-    .apparatus { font-size: 24px; }
-    table { font-size: 28px; }
-    th, td { padding: 20px; }
-    .table-title { font-size: 30px; }
-    .apparatus { font-size: 26px; }
-  }
+  .gold td { background: #ffe680 !important; }
 
   @media (max-width: 900px) {
-@@ -194,15 +194,11 @@
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
+    main { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="header-title">
+    <h1>ArtVin Cup</h1>
+    <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg">
+  </div>
+
+  <select id="streamSelect" style="padding:8px;font-size:16px;border-radius:6px;">
+    <option disabled selected>Выберите поток</option>
+    <option value="1">поток 1</option>
+    <option value="2">поток 2</option>
+    <option value="3">поток 3</option>
+    <option value="4">поток 4</option>
+    <option value="5">поток 5</option>
+    <option value="6">поток 6</option>
+    <option value="7">поток 7</option>
+  </select>
+</header>
+
+<main id="tables"></main>
+
+<script>
+const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
+
+const STREAMS = {
+  1: { sheet:"поток 1", ranges:["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
+  2: { sheet:"поток 2", ranges:["A3:B16","D3:E15","G3:H14","A18:B29","D17:E26","G17:H26"] },
+  3: { sheet:"поток 3", ranges:["A2:B14","D2:E13","A16:B28","D16:E28"] },
+  4: { sheet:"поток 4", ranges:["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
+  5: { sheet:"поток 5", ranges:["A3:B14","D3:E13","G3:H14","A17:B27","D17:E27"] },
+  6: { sheet:"поток 6", ranges:["A2:B8","D2:E8","G2:H8"] },
+  7: { sheet:"поток 7", ranges:["A2:B13","D2:E14","A16:B27","D16:E26"] }
+};
+
+function parseCSV(text) {
+  return text.trim().split(/\r?\n/).map(
+    line => line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(val =>
+      val.replace(/^"+|"+$/g,"").trim()
+    )
+  );
 }
 
-/**
- * Главная функция: грузим диапазон и строим HTML для одной таблицы.
- * Алгоритм:
- *  - первая строка диапазона -> снаряд, но из неё вырезаем слова "ФИО" и "Оценка"
- *  - все остальные строки:
- *      * пропускаем, если первая ячейка пустая
- *      * пропускаем, если в первой ячейке слово "ФИО"
- *      * остальное считаем строками участников
- */
-/*  
---------------------------
-  НОВЫЙ ПРАВИЛЬНЫЙ ПАРСЕР
---------------------------
-*/
-async function loadTable(sheet, range, title, token){
-  const res = await fetch(buildUrl(sheet, range));
-  const text = await res.text();
-@@ -211,51 +207,52 @@
-  const rows = parseCSV(text);
-  if (!rows.length) return null;
+async function loadTable(sheet, range, number) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cache=${Date.now()}`;
+  const res = await fetch(url);
+  const rows = parseCSV(await res.text());
 
-  // --- 1. СНАРЯД ---
-  // Склеиваем всю первую строку в строку и выбрасываем "ФИО" и "Оценка"
-  let apparatusRaw = rows[0].join(" ").trim();
-  apparatusRaw = apparatusRaw
-    .replace(/\bФИО\b/gi, "")
-    .replace(/\bОЦЕНКА\b/gi, "")
-    .trim();
-  if (!apparatusRaw) {
-    // если вдруг всё выбросили — вернём первую не пустую ячейку
-    for (const c of rows[0]) {
-      if (c.trim() !== "") {
-        apparatusRaw = c.trim();
-        break;
-      }
-  // --- 1. ИЩЕМ СНАРЯД (первая нормальная строка без ФИО/Оценка) ---
-  let apparatus = "";
-  let headerRowIndex = -1;
+  if (!rows.length) return "";
 
-  for (let i = 0; i < rows.length; i++) {
-    const rowText = rows[i].join(" ").trim();
+  const apparatus = rows[0][0] || "Снаряд";
+  const headers = rows[1] || ["ФИО","Оценка"];
+  const participants = rows.slice(2);
 
-    if (!rowText) continue;
-    if (/фио/i.test(rowText) || /оценка/i.test(rowText)) {
-      headerRowIndex = i;
-      continue;
-    }
-
-    // Это и есть снаряд
-    apparatus = rowText;
-    headerRowIndex = i + 1;
-    break;
-  }
-  const apparatus = apparatusRaw || "Снаряд";
-
-  // --- 2. УЧАСТНИКИ ---
-  const participants = [];
-  if (!apparatus) apparatus = "Снаряд";
-
-  for (let i = 1; i < rows.length; i++) {
-  // Если заголовков нет – делаем свои
-  const headers = rows[headerRowIndex] ?? ["ФИО", "Оценка"];
-
-  // --- 3. УЧАСТНИКИ ---
-  const participants = [];
-  for (let i = headerRowIndex + 1; i < rows.length; i++){
-    const row = rows[i];
-    if (!row || !row.length) continue;
-
-    const fio = (row[0] || "").trim();
-    const score = (row[1] || "").trim();
-
-    // пустая строка — пропускаем
-    if (fio === "" && score === "") continue;
-
-    // строка шапки "ФИО" — пропускаем
-    if (fio.toUpperCase().includes("ФИО")) continue;
-    if (!fio && !score) continue;
-
-    participants.push([fio, score]);
-  }
-
-  // --- 3. ЗОЛОТО ---
-  // --- 4. ЗОЛОТО ---
-  let maxScore = -Infinity;
-  participants.forEach(r => {
-    const val = parseFloat(r[1]);
-    if (!isNaN(val) && val > maxScore) maxScore = val;
-  participants.forEach(([fio, score]) => {
-    const n = parseFloat(score);
-    if (!isNaN(n) && n > maxScore) maxScore = n;
+  let max = -999;
+  participants.forEach(r=>{
+    const s = parseFloat(r[1]);
+    if (!isNaN(s)) max = Math.max(max, s);
   });
 
-  // --- 4. HTML ---
-  // --- 5. HTML ---
   let html = `
-    <div class="table-box">
-      <div class="table-title">${title}</div>
-@@ -272,9 +269,8 @@
+  <div class="table-box">
+    <div class="table-title">Таблица ${number}</div>
+    <div class="apparatus">${apparatus}</div>
+    <table>
+      <thead><tr>
   `;
 
-  participants.forEach(([fio, score]) => {
-    const num = parseFloat(score);
-    const isGold = !isNaN(num) && num === maxScore;
+  headers.forEach(h => html += `<th>${h}</th>`);
+  html += "</tr></thead><tbody>";
 
-    const v = parseFloat(score);
-    const isGold = !isNaN(v) && v === maxScore;
-    html += `
-      <tr class="${isGold ? "gold" : ""}">
-        <td>${fio}</td>
-@@ -310,23 +306,16 @@
-  const token = requestToken;
-  const list = [];
+  participants.forEach(r=>{
+    if (!r[0]) return;
+    const s = parseFloat(r[1]);
+    const cls = (!isNaN(s) && s === max) ? "gold" : "";
+    html += `<tr class="${cls}"><td>${r[0]}</td><td>${r[1]}</td></tr>`;
+  });
 
-  for (let i = 0; i < cfg.ranges.length; i++){
-  for (const [i, range] of cfg.ranges.entries()) {
-    try {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-      if (html) list.push(html);
-    } catch (e) {
-      list.push(
-        `<div class="table-box">
-           <div class="table-title">Таблица ${i+1}</div>
-           <div style="padding:10px;text-align:center;color:#c00;">Ошибка загрузки</div>
-         </div>`
-      );
-      const html = await loadTable(cfg.sheet, range, `Таблица ${i+1}`, token);
-      list.push(html);
-    } catch {
-      list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
-    }
-  }
-
-  if (token === requestToken) {
-    allTablesHTML = list;
-  }
-  if (token === requestToken) allTablesHTML = list;
+  html += "</tbody></table></div>";
+  return html;
 }
 
-async function renderStream(stream){
-@@ -345,17 +334,12 @@
-  const token = requestToken;
+async function renderStream(stream) {
+  const cfg = STREAMS[stream];
+  const box = document.getElementById("tables");
+  box.innerHTML = "";
 
-  const list = [];
-  for (let i = 0; i < cfg.ranges.length; i++){
-  for (const [i, range] of cfg.ranges.entries()) {
-    try {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], `Таблица ${i+1}`, token);
-      if (html) list.push(html);
-    } catch (e) {
-      list.push(
-        `<div class="table-box">
-           <div class="table-title">Таблица ${i+1}</div>
-           <div style="padding:10px;text-align:center;color:#c00;">Ошибка загрузки</div>
-         </div>`
-      );
-      const html = await loadTable(cfg.sheet, range, `Таблица ${i+1}`, token);
-      list.push(html);
-    } catch {
-      list.push(`<div class="table-box"><div class="table-title">Ошибка</div></div>`);
-    }
+  let html = "";
+
+  for (let i = 0; i < cfg.ranges.length; i++) {
+    html += await loadTable(cfg.sheet, cfg.ranges[i], i+1);
   }
+
+  box.innerHTML = html;
+}
+
+document.getElementById("streamSelect").addEventListener("change", e => {
+  renderStream(e.target.value);
+});
+</script>
+
+</body>
+</html>
