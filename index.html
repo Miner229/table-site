@@ -174,9 +174,9 @@ const STREAMS = {
 const container = document.getElementById("tables");
 const select = document.getElementById("streamSelect");
 
-const PAGE_SIZE = 2;
-const ROTATE_MS = 20000;
-const REFRESH_MS = 20000;
+const PAGE_SIZE = 2;        // Показываем по 2 таблицы
+const ROTATE_MS = 20000;    // Время между сменой страниц
+const REFRESH_MS = 20000;   // Обновление таблиц
 
 let allTables = [];
 let pageIndex = 0;
@@ -185,7 +185,6 @@ let refreshTimer = null;
 let currentStream = null;
 let loadGeneration = 0;
 
-// --- CSV парсер ---
 function parseCSV(text) {
   return text
     .trim()
@@ -197,14 +196,12 @@ function parseCSV(text) {
     );
 }
 
-// --- формируем URL CSV ---
 function buildCsvUrl(sheet, range) {
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
          `?tqx=out:csv&sheet=${encodeURIComponent(sheet)}` +
          `&range=${range}&cacheBust=${Date.now()}`;
 }
 
-// --- загрузка одной таблицы ---
 async function loadTable(sheet, range, index, gen) {
   try {
     const res = await fetch(buildCsvUrl(sheet, range));
@@ -216,11 +213,9 @@ async function loadTable(sheet, range, index, gen) {
     const rows = rawRows.filter(r => r.some(c => c !== ""));
     if (!rows.length) throw new Error("Нет данных");
 
-    // --- аппарат ---
     let apparatusText = rows[0].join(" ").replace(/фио/gi,"").replace(/оценка/gi,"").trim();
     if (!apparatusText) apparatusText = "Снаряд";
 
-    // --- заголовки ---
     let headerIndex = rows.findIndex(r => r[0] && /фио/i.test(r[0]) && r[1] && /оценка/i.test(r[1]));
     if (headerIndex === -1) headerIndex = 1;
     let headerRow = rows[headerIndex] || [];
@@ -229,14 +224,12 @@ async function loadTable(sheet, range, index, gen) {
 
     let participants = rows.slice(headerIndex + 1);
 
-    // --- максимальная оценка ---
     let maxScore = -Infinity;
     participants.forEach(r => {
       const num = parseFloat((r[1] || "").replace(",", "."));
       if (!isNaN(num) && num > maxScore) maxScore = num;
     });
 
-    // --- формируем HTML таблицы ---
     let html = `<div class="table-box">
                   <div class="table-title">Таблица ${index}</div>
                   <div class="apparatus">${apparatusText}</div>
@@ -265,7 +258,6 @@ async function loadTable(sheet, range, index, gen) {
   }
 }
 
-// --- рендер страницы ---
 function renderPage() {
   if (!allTables.length) {
     container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
@@ -281,10 +273,9 @@ function renderPage() {
   container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 2)}, 1fr)`;
   container.innerHTML = slice.join("");
 
-  pageIndex = (pageIndex + 1) % totalPages;
+  pageIndex++;
 }
 
-// --- обновление всех таблиц ---
 async function refreshTables() {
   if (!currentStream) return;
   const cfg = STREAMS[currentStream];
@@ -298,7 +289,6 @@ async function refreshTables() {
   allTables = tables;
 }
 
-// --- отображение потока ---
 async function renderStream(stream) {
   const cfg = STREAMS[stream];
   currentStream = stream;
@@ -327,7 +317,6 @@ async function renderStream(stream) {
   refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
-// --- выбор потока ---
 select.addEventListener("change", () => {
   const s = select.value;
   if (s) renderStream(s);
