@@ -66,7 +66,6 @@ main {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 14px;
-    overflow-y: auto; /* внутренний скролл для длинных таблиц */
 }
 
 .table-box {
@@ -96,27 +95,28 @@ main {
     border-bottom: 1px solid #dce2e9;
 }
 
-/* --- Основная таблица --- */
 table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed; /* фиксированная ширина колонок */
+    table-layout: fixed; /* фиксированная ширина ячеек */
 }
 
 th, td {
     border: 1px solid #dce2e9;
+    padding: 20px 14px; /* увеличиваем вертикальный padding */
     text-align: center;
     font-size: 18px;
     font-weight: 700;
-    max-width: none;
-    overflow-wrap: break-word;
-    white-space: normal;
-    padding: 12px 10px; /* чуть меньше, чтобы поместились все строки */
+    max-width: none; /* убираем ограничение ширины */
+    overflow-wrap: normal; /* убираем перенос слов */
+    white-space: nowrap; /* текст не переносится на новую строку */
 }
 
-/* Цвета и оформление */
+
+
 th {
     background: #e6ecf5;
+    font-size: 18px;
 }
 
 tbody tr:nth-child(even) td {
@@ -128,16 +128,14 @@ tbody tr:nth-child(even) td {
     font-weight: 900 !important;
 }
 
-/* Адаптив для телефонов */
 @media (max-width: 900px) {
     main {
         grid-template-columns: 1fr;
         padding: 10px;
     }
-    th, td { font-size: 16px; padding: 10px 6px; }
+    th, td { font-size: 16px; padding: 12px 8px; }
     .apparatus { font-size: 16px; padding: 8px; }
 }
-
 </style>
 </head>
 
