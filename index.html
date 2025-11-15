@@ -9,7 +9,7 @@ body {
     margin: 0;
     background: #f7f9fb;
     font-family: "Segoe UI", Arial, sans-serif;
-    overflow: hidden; /* внешний скролл отключен */
+    overflow: hidden;
 }
 
 header {
@@ -102,18 +102,17 @@ table {
 
 th, td {
     border: 1px solid #dce2e9;
-    padding: 10px 8px; /* уменьшили, чтобы строки помещались */
+    padding: 10px 8px;
     text-align: center;
     font-size: 18px;
     font-weight: 700;
     max-width: none;
-    overflow-wrap: break-word; /* чтобы длинные имена не ломали строки */
+    overflow-wrap: break-word;
     white-space: nowrap;
 }
 
-/* Фиксируем высоту строк, чтобы JS не менял размеры */
 tbody tr {
-    height: 30px; /* подбирается под среднее количество участников */
+    height: 30px;
 }
 
 th {
@@ -139,10 +138,8 @@ tbody tr:nth-child(even) td {
     .apparatus { font-size: 16px; padding: 8px; }
     tbody tr { height: 28px; }
 }
-    
 </style>
 </head>
-
 <body>
 <header>
     <div class="header-title">
@@ -166,7 +163,7 @@ tbody tr:nth-child(even) td {
 <main id="tables"></main>
 
 <script>
-    const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
+const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
 const STREAMS = {
   1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
@@ -181,9 +178,9 @@ const STREAMS = {
 const container = document.getElementById("tables");
 const select = document.getElementById("streamSelect");
 
-const PAGE_SIZE = 2;        // Показываем по 2 таблицы
-const ROTATE_MS = 20000;    // Время между сменой страниц
-const REFRESH_MS = 20000;   // Обновление таблиц
+const PAGE_SIZE = 2;
+const ROTATE_MS = 20000;
+const REFRESH_MS = 20000;
 
 let allTables = [];
 let pageIndex = 0;
@@ -196,17 +193,14 @@ function parseCSV(text) {
   return text
     .trim()
     .split(/\r?\n/)
-    .map(line =>
-      line
-        .split(/,(?=(?:[^"]"[^"]")[^"]$)/)
-        .map(v => v.replace(/^"+|"+$/g, "").trim())
+    .map(line => line
+      .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+      .map(v => v.replace(/^"+|"+$/g, "").trim())
     );
 }
 
 function buildCsvUrl(sheet, range) {
-  return https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq +
-         ?tqx=out:csv&sheet=${encodeURIComponent(sheet)} +
-         &range=${range}&cacheBust=${Date.now()};
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
 
 async function loadTable(sheet, range, index, gen) {
@@ -245,16 +239,15 @@ async function loadTable(sheet, range, index, gen) {
                     <tbody>`;
 
     participants.forEach(row => {
-      const fio = (row[0] || "").trim();
+      const fio = (row[0] || "").trim() || "-";
       let scoreText = (row[1] || "").trim();
-      if (!fio) return;
       const num = parseFloat(scoreText.replace(",", "."));
-      if (isNaN(num)) scoreText = "-";
       const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
-      html += <tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>;
+      if (scoreText === "" || isNaN(num)) scoreText = "-";
+      html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
     });
 
-    html += </tbody></table></div>;
+    html += `</tbody></table></div>`;
     return html;
 
   } catch (err) {
@@ -277,7 +270,7 @@ function renderPage() {
   const start = pageIndex * PAGE_SIZE;
   const slice = allTables.slice(start, start + PAGE_SIZE);
 
-  container.style.gridTemplateColumns = repeat(${Math.min(slice.length, 2)}, 1fr);
+  container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 2)}, 1fr)`;
   container.innerHTML = slice.join("");
 
   pageIndex++;
@@ -328,7 +321,6 @@ select.addEventListener("change", () => {
   const s = select.value;
   if (s) renderStream(s);
 });
-
 </script>
 </body>
 </html>
