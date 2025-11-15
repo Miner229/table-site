@@ -6,7 +6,6 @@
 <title>ArtVin Cup</title>
 
 <style>
-/* Общие стили */
 body {
     margin: 0;
     background: #f7f9fb;
@@ -59,7 +58,6 @@ header {
     font-weight: 600;
 }
 
-/* Главный контейнер */
 main {
     position: absolute;
     top: 100px; bottom: 0; left: 0; right: 0;
@@ -70,18 +68,15 @@ main {
     gap: 14px;
 }
 
-/* Контейнер таблицы */
 .table-box {
-    display: flex;
-    flex-direction: column;
-    height: 90vh; /* почти весь экран */
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 3px 12px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
 }
 
-/* Заголовок таблицы и аппарат */
 .table-title {
     background: #007bff;
     color: #fff;
@@ -100,42 +95,31 @@ main {
     border-bottom: 1px solid #dce2e9;
 }
 
-/* Таблица */
+/* --- Основная таблица --- */
 table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed;
-    flex: 1 1 auto; /* растягиваем таблицу по высоте контейнера */
-    display: flex;
-    flex-direction: column;
+    table-layout: fixed; /* фиксированная ширина колонок */
 }
 
-thead {
-    display: table-header-group; /* фиксируем заголовок */
-}
-
-tbody {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    justify-content: space-between; /* равномерно распределяем строки */
-}
-
-tbody tr {
-    display: flex;
-    flex: 1 1 auto; /* каждая строка занимает равную часть tbody */
-    align-items: center; /* вертикальное центрирование текста */
-}
-
-td, th {
-    flex: 1 1 50%; /* две колонки делят пространство поровну */
+th, td {
     border: 1px solid #dce2e9;
     text-align: center;
-    font-weight: 700;
     font-size: 18px;
-    padding: 0; /* padding убран, чтобы строки растягивались */
+    font-weight: 700;
+    max-width: none;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    padding: 12px 10px; /* можно чуть увеличить или уменьшить для подгонки */
 }
 
+/* Высота строки подстраивается под кол-во участников */
+tbody tr {
+    height: calc((100vh - 100px - 12px*2 - 12px) / 8); 
+    /* 100vh - header - padding таблицы, делим на макс кол-во участников */
+}
+
+/* Цвета и оформление */
 th {
     background: #e6ecf5;
     font-size: 18px;
@@ -150,15 +134,16 @@ tbody tr:nth-child(even) td {
     font-weight: 900 !important;
 }
 
-/* Адаптация под мобильные устройства */
+/* Адаптив для телефонов */
 @media (max-width: 900px) {
     main {
         grid-template-columns: 1fr;
-        padding: 5px;
+        padding: 10px;
     }
-    td, th { font-size: 16px; }
-    .apparatus, .table-title { font-size: 16px; padding: 8px; }
+    th, td { font-size: 16px; padding: 10px 6px; }
+    .apparatus { font-size: 16px; padding: 8px; }
 }
+
 </style>
 </head>
 
