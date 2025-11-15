@@ -181,7 +181,6 @@ function parseScore(value) {
     return Number.isFinite(num) ? num : NaN;
 }
 
-
 // ===============================
 //     CSV ПАРСЕР
 // ===============================
@@ -193,20 +192,21 @@ function parseCSV(text) {
     );
 }
 
-
 // ===============================
-//     ПОТОЧНЫЕ ДАННЫЕ
+//     НАСТРОЙКИ ПОТОКОВ
+//  (диапазоны с захватом строки
+//   снаряда и возможной колонки C)
 // ===============================
 const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
 const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A2:B14"] },
-  2: { sheet: "поток 2", ranges: ["A3:B16"] },
-  3: { sheet: "поток 3", ranges: ["A2:B14"] },
-  4: { sheet: "поток 4", ranges: ["A3:B15"] },
-  5: { sheet: "поток 5", ranges: ["A3:B14"] },
-  6: { sheet: "поток 6", ranges: ["A2:B8"] },
-  7: { sheet: "поток 7", ranges: ["A2:B13"] }
+  1: { sheet: "поток 1", ranges: ["A1:C9","D1:F13","G1:I14","A15:C28","D15:F27","G15:I28"] },
+  2: { sheet: "поток 2", ranges: ["A2:C16","D2:F15","G2:I14","A17:C29","D16:F26","G16:I26"] },
+  3: { sheet: "поток 3", ranges: ["A1:C14","D1:F13","A15:C28","D15:F28"] },
+  4: { sheet: "поток 4", ranges: ["A2:C15","D2:F16","G2:I14","A17:C31","D17:F31","G17:I31","A32:C44"] },
+  5: { sheet: "поток 5", ranges: ["A2:C14","D2:F13","G2:I14","A16:C27","D16:F27"] },
+  6: { sheet: "поток 6", ranges: ["A1:C8","D1:F8","G1:I8"] },
+  7: { sheet: "поток 7", ranges: ["A1:C13","D1:F14","A15:C27","D15:F26"] }
 };
 
 const container = document.getElementById("tables");
@@ -223,14 +223,12 @@ let refreshTimer = null;
 let currentStream = null;
 let loadGeneration = 0;
 
-
 // ===============================
 //   URL для CSV Google Sheets
 // ===============================
 function buildCsvUrl(sheet, range) {
     return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
 }
-
 
 // ===============================
 //   ЗАГРУЗКА И РАЗБОР ТАБЛИЦЫ
@@ -245,60 +243,106 @@ async function loadTable(sheet, range, index, gen) {
 
         let rows = parseCSV(text);
 
-        // убираем полностью пустые строки
+        // Убираем полностью пустые строки
         rows = rows.filter(r => !(r.length === 0 || r.every(c => c.trim() === "")));
-
-        if (rows.length < 2) throw new Error("Недостаточно данных");
-
-        // ===============================
-        // 1. СНАРЯД — СТРОГО 1-я строка
-        // ===============================
-        const apparatusText = rows[0].join(" ").trim() || "Снаряд";
+        if (!rows.length) throw new Error("Нет данных");
 
         // ===============================
-        // 2. ЗАГОЛОВОК — СТРОГО 2-я строка
+        // 1. ОПРЕДЕЛЯЕМ СНАРЯД И ЗАГОЛОВОК
         // ===============================
-        const headerRow = rows[1];
+        let apparatusText = "Снаряд";
+        let headerRow;
+        let dataStartIndex;
+
+        const firstRowText = rows[0].join(" ").toLowerCase();
+
+        // Если первая строка НЕ содержит "фио"/"оценка" и НЕ содержит цифр → это снаряд
+        if (!firstRowText.includes("фио") && !firstRowText.includes("оценка") && !/\d/.test(firstRowText)) {
+            apparatusText = rows[0].join(" ").trim();
+            headerRow = rows[1];
+            dataStartIndex = 2;
+        } else {
+            // Иначе считаем, что снаряда нет, а первая строка сразу заголовок
+            headerRow = rows[0];
+            dataStartIndex = 1;
+        }
+
+        // Название колонок
         const nameHeader = headerRow[0] || "ФИО";
-        const scoreHeader = headerRow[1] || "ОЦЕНКА";
+
+        // Определяем индекс колонки с оценкой по слову "ОЦЕНКА" или "БАЛЛ"
+        let scoreColIndex = 1;
+        for (let j = 1; j < headerRow.length; j++) {
+            const col = (headerRow[j] || "").toLowerCase();
+            if (col.includes("оцен") || col.includes("балл")) {
+                scoreColIndex = j;
+                break;
+            }
+        }
+        const scoreHeader = headerRow[scoreColIndex] || "ОЦЕНКА";
+
+        // Участники
+        const participants = rows.slice(dataStartIndex);
 
         // ===============================
-        // 3. УЧАСТНИКИ — СТРОКИ С 3-Й
-        // ===============================
-        const participants = rows.slice(2);
-
-        // ===============================
-        // 4. ПОИСК МАКСИМАЛЬНОЙ ОЦЕНКИ
+        // 2. НАХОДИМ МАКСИМАЛЬНУЮ ОЦЕНКУ
         // ===============================
         let maxScore = -Infinity;
         participants.forEach(r => {
-            const num = parseScore(r[1] || "");
+            let scoreText = r[scoreColIndex] || "";
+
+            // Если в основной колонке пусто — ищем оценку правее (как у Салмана 9.5)
+            if (!scoreText.trim()) {
+                for (let j = scoreColIndex + 1; j < r.length; j++) {
+                    if (!r[j]) continue;
+                    const num = parseScore(r[j]);
+                    if (!isNaN(num)) {
+                        scoreText = r[j];
+                        break;
+                    }
+                }
+            }
+
+            const num = parseScore(scoreText);
             if (!isNaN(num) && num > maxScore) maxScore = num;
         });
 
         // ===============================
-        // 5. СБОР HTML
+        // 3. СБОР HTML
         // ===============================
         let html = `<div class="table-box">
             <div class="table-title">Таблица ${index}</div>
             <div class="apparatus">${apparatusText}</div>
             <table>
-            <thead>
-                <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
-            </thead>
-            <tbody>`;
+                <thead>
+                    <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
+                </thead>
+                <tbody>`;
 
-        participants.forEach(row => {
-            const fio = (row[0] || "-").trim();
-            let rawScore = (row[1] || "").trim();
-            const num = parseScore(rawScore);
-            const isGold = !isNaN(num) && Math.abs(num - maxScore) < 0.000001;
+        participants.forEach(r => {
+            const fio = (r[0] || "-").trim();
 
-            if (!rawScore || isNaN(num)) rawScore = "-";
+            let scoreText = r[scoreColIndex] || "";
+            // Если основная колонка пустая — ищем оценку правее
+            if (!scoreText.trim()) {
+                for (let j = scoreColIndex + 1; j < r.length; j++) {
+                    if (!r[j]) continue;
+                    const numTmp = parseScore(r[j]);
+                    if (!isNaN(numTmp)) {
+                        scoreText = r[j];
+                        break;
+                    }
+                }
+            }
+
+            const num = parseScore(scoreText);
+            const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
+
+            if (!scoreText || isNaN(num)) scoreText = "-";
 
             html += `<tr class="${isGold ? "gold" : ""}">
                         <td>${fio}</td>
-                        <td>${rawScore}</td>
+                        <td>${scoreText}</td>
                     </tr>`;
         });
 
@@ -306,13 +350,13 @@ async function loadTable(sheet, range, index, gen) {
         return html;
 
     } catch (err) {
+        console.error("Ошибка таблицы:", err);
         return `<div class="table-box">
             <div class="table-title">Таблица ${index}</div>
             <div class="apparatus" style="color:#c00;">Нет данных</div>
         </div>`;
     }
 }
-
 
 // ===============================
 //     ОТРИСОВКА СТРАНИЦ
@@ -327,12 +371,11 @@ function renderPage() {
     if (pageIndex >= totalPages) pageIndex = 0;
 
     const slice = allTables.slice(pageIndex * PAGE_SIZE, pageIndex * PAGE_SIZE + PAGE_SIZE);
-    container.style.gridTemplateColumns = `repeat(${slice.length}, 1fr)`;
+    container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 2)}, 1fr)`;
     container.innerHTML = slice.join("");
 
     pageIndex++;
 }
-
 
 // ===============================
 //     АВТО-ОБНОВЛЕНИЕ
@@ -351,7 +394,6 @@ async function refreshTables() {
     if (gen !== loadGeneration) return;
     allTables = tables;
 }
-
 
 // ===============================
 //     ЗАГРУЗКА ПОТОКА
@@ -382,10 +424,11 @@ async function renderStream(stream) {
     pageIndex = 0;
     renderPage();
 
-    if (allTables.length > PAGE_SIZE) rotateTimer = setInterval(renderPage, ROTATE_MS);
+    if (allTables.length > PAGE_SIZE) {
+        rotateTimer = setInterval(renderPage, ROTATE_MS);
+    }
     refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
-
 
 // ===============================
 //     ВЫБОР ПОТОКА
