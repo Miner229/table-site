@@ -212,13 +212,14 @@ function parseCSV(text) {
     );
 }
 
+// --- строим ссылку на CSV ---
 function buildCsvUrl(sheet, range) {
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
          `?tqx=out:csv&sheet=${encodeURIComponent(sheet)}` +
          `&range=${range}&cacheBust=${Date.now()}`;
 }
 
-// --- ЗАМЕНЕННАЯ ФУНКЦИЯ loadTable ---
+// --- загружаем таблицу ---
 async function loadTable(sheet, range, index, gen) {
   try {
     const res = await fetch(buildCsvUrl(sheet, range));
@@ -241,23 +242,28 @@ async function loadTable(sheet, range, index, gen) {
 
     let participants = rows.slice(headerIndex + 1);
 
-    // находим максимальную оценку корректно
-   let maxScore = -Infinity;
-participants.forEach(r => {
-  const num = parseScore(r[1]);
-  if (!isNaN(num) && num > maxScore) maxScore = num;
-});
+    // --- находим максимальную оценку
+    let maxScore = -Infinity;
+    participants.forEach(r => {
+      const num = parseScore(r[1]);
+      if (!isNaN(num) && num > maxScore) maxScore = num;
+    });
 
-participants.forEach(row => {
-  const fio = (row[0] || "").trim() || "-"; // если ФИО пустое
-  let scoreText = (row[1] || "").trim();
-  const num = parseScore(scoreText);
-  const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
-  if (scoreText === "" || isNaN(num)) scoreText = "-";
-  html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
-});
+    let html = `<div class="table-box">
+                  <div class="table-title">Таблица ${index}</div>
+                  <div class="apparatus">${apparatusText}</div>
+                  <table>
+                    <thead><tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr></thead>
+                    <tbody>`;
 
-
+    participants.forEach(row => {
+      const fio = (row[0] || "").trim() || "-"; // если ФИО пустое
+      let scoreText = (row[1] || "").trim();
+      const num = parseScore(scoreText);
+      const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
+      if (scoreText === "" || isNaN(num)) scoreText = "-";
+      html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
+    });
 
     html += `</tbody></table></div>`;
     return html;
@@ -337,6 +343,7 @@ select.addEventListener("change", () => {
   const s = select.value;
   if (s) renderStream(s);
 });
+
 
 </script>
 </body>
