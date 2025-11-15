@@ -177,9 +177,9 @@ const STREAMS = {
 const container = document.getElementById("tables");
 const select = document.getElementById("streamSelect");
 
-const PAGE_SIZE = 2;
-const ROTATE_MS = 20000;
-const REFRESH_MS = 20000;
+const PAGE_SIZE = 2;        // Показываем по 2 таблицы
+const ROTATE_MS = 20000;    // Время между сменой страниц
+const REFRESH_MS = 20000;   // Обновление таблиц
 
 let allTables = [];
 let pageIndex = 0;
@@ -188,6 +188,15 @@ let refreshTimer = null;
 let currentStream = null;
 let loadGeneration = 0;
 
+// --- безопасный парсер оценок ---
+function parseScore(scoreText) {
+  if (!scoreText) return NaN;
+  let clean = scoreText.replace(/\s+/g, "").replace(/"/g,"").replace(",", ".");
+  const num = parseFloat(clean);
+  return isNaN(num) ? NaN : num;
+}
+
+// --- парсим CSV ---
 function parseCSV(text) {
   return text
     .trim()
@@ -200,9 +209,12 @@ function parseCSV(text) {
 }
 
 function buildCsvUrl(sheet, range) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&range=${range}&cacheBust=${Date.now()}`;
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
+         `?tqx=out:csv&sheet=${encodeURIComponent(sheet)}` +
+         `&range=${range}&cacheBust=${Date.now()}`;
 }
 
+// --- загружаем таблицу ---
 async function loadTable(sheet, range, index, gen) {
   try {
     const res = await fetch(buildCsvUrl(sheet, range));
@@ -214,28 +226,24 @@ async function loadTable(sheet, range, index, gen) {
     const rows = rawRows.filter(r => r.some(c => c !== ""));
     if (!rows.length) throw new Error("Нет данных");
 
-    // --- Аппарат
     let apparatusText = rows[0].join(" ").replace(/фио/gi,"").replace(/оценка/gi,"").trim();
     if (!apparatusText) apparatusText = "Снаряд";
 
-    // --- Заголовки
     let headerIndex = rows.findIndex(r => r[0] && /фио/i.test(r[0]) && r[1] && /оценка/i.test(r[1]));
     if (headerIndex === -1) headerIndex = 1;
-    const headerRow = rows[headerIndex] || [];
-    const nameHeader = headerRow[0] || "ФИО";
-    const scoreHeader = headerRow[1] || "Оценка";
+    let headerRow = rows[headerIndex] || [];
+    let nameHeader = headerRow[0] || "ФИО";
+    let scoreHeader = headerRow[1] || "Оценка";
 
-    // --- Участники
-    const participants = rows.slice(headerIndex + 1);
+    let participants = rows.slice(headerIndex + 1);
 
-    // --- Находим максимальную оценку (целые и дробные)
+    // находим максимальную оценку
     let maxScore = -Infinity;
     participants.forEach(r => {
-      const num = parseFloat((r[1] || "").replace(",", "."));
+      const num = parseScore(r[1]);
       if (!isNaN(num) && num > maxScore) maxScore = num;
     });
 
-    // --- Формируем HTML таблицы
     let html = `<div class="table-box">
                   <div class="table-title">Таблица ${index}</div>
                   <div class="apparatus">${apparatusText}</div>
@@ -246,9 +254,9 @@ async function loadTable(sheet, range, index, gen) {
     participants.forEach(row => {
       const fio = (row[0] || "").trim();
       let scoreText = (row[1] || "").trim();
-      if (!fio) return; // пустые строки игнорируем
-      const num = parseFloat(scoreText.replace(",", "."));
-      if (isNaN(num)) scoreText = "-"; // если не число, показываем "-"
+      if (!fio) return;
+      const num = parseScore(scoreText);
+      if (isNaN(num)) scoreText = "-";
       const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-6;
       html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
     });
@@ -264,6 +272,7 @@ async function loadTable(sheet, range, index, gen) {
   }
 }
 
+// --- рендерим страницу ---
 function renderPage() {
   if (!allTables.length) {
     container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
@@ -282,6 +291,7 @@ function renderPage() {
   pageIndex++;
 }
 
+// --- обновление таблиц ---
 async function refreshTables() {
   if (!currentStream) return;
   const cfg = STREAMS[currentStream];
@@ -295,6 +305,7 @@ async function refreshTables() {
   allTables = tables;
 }
 
+// --- рендер выбранного потока ---
 async function renderStream(stream) {
   const cfg = STREAMS[stream];
   currentStream = stream;
@@ -323,11 +334,11 @@ async function renderStream(stream) {
   refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
+// --- обработка выбора потока ---
 select.addEventListener("change", () => {
   const s = select.value;
   if (s) renderStream(s);
 });
-
 
 </script>
 </body>
