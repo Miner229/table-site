@@ -1,4 +1,4 @@
-this is ourt current css: <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
@@ -6,14 +6,17 @@ this is ourt current css: <!DOCTYPE html>
 <title>ArtVin Cup</title>
 
 <style>
-  body {
+/* ---------------------------- */
+/* ОБЩИЕ СТИЛИ ДЛЯ BODY И HEADER */
+/* ---------------------------- */
+body {
     margin: 0;
     background: #f7f9fb;
     font-family: "Segoe UI", Arial, sans-serif;
-    overflow: hidden;
-  }
+    overflow: hidden; /* запрещаем скролл body, скролл будет только для main */
+}
 
-  header {
+header {
     position: fixed;
     top: 0; left: 0; right: 0;
     height: 100px;
@@ -25,29 +28,29 @@ this is ourt current css: <!DOCTYPE html>
     padding: 0 40px;
     box-shadow: 0 3px 10px rgba(0,0,0,.25);
     z-index: 10;
-  }
+}
 
-  .header-title {
+.header-title {
     display: flex;
     align-items: center;
     gap: 15px;
-  }
+}
 
-  .header-title h1 {
+.header-title h1 {
     margin: 0;
     font-size: 26px;
     font-weight: 800;
-  }
+}
 
-  .header-title img {
+.header-title img {
     height: 80px;
     width: auto;
     border-radius: 6px;
     background: #fff;
     padding: 4px;
-  }
+}
 
-  .stream-select {
+.stream-select {
     font-size: 16px;
     padding: 8px 14px;
     border: none;
@@ -56,325 +59,369 @@ this is ourt current css: <!DOCTYPE html>
     background: #fff;
     cursor: pointer;
     font-weight: 600;
-  }
+}
 
-  main {
+/* ---------------------------- */
+/* ОСНОВНОЙ КОНТЕЙНЕР main */
+/* ---------------------------- */
+main {
     position: absolute;
     top: 100px; bottom: 0; left: 0; right: 0;
     padding: 14px;
     box-sizing: border-box;
-    overflow-y: auto;
-    overflow-x: hidden;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 14px;
-  }
+    overflow-y: auto; /* разрешаем скролл при необходимости */
+    overflow-x: hidden;
+}
 
-  /* --- АДАПТАЦИЯ ПОД ЭКРАН ПК --- */
-  @media (min-width: 901px) {
+/* Адаптация под ПК */
+@media (min-width: 901px) {
     main {
-      height: calc(100vh - 100px);
-      overflow-y: auto;
-      overflow-x: hidden;
+        height: calc(100vh - 100px);
     }
-  }
+}
 
-  .table-box {
+/* ---------------------------- */
+/* СТИЛИ ТАБЛИЦ */
+/* ---------------------------- */
+.table-box {
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 3px 12px rgba(0,0,0,0.15);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-  }
+}
 
-  .table-title {
+.table-title {
     background: #007bff;
     color: #fff;
     text-align: center;
     padding: 12px;
     font-size: 20px;
     font-weight: 900;
-  }
+}
 
-  .apparatus {
+.apparatus {
     background: #eef4ff;
     padding: 12px;
     text-align: center;
     font-size: 20px;
     font-weight: 800;
     border-bottom: 1px solid #dce2e9;
-  }
-
- /* Чтобы имена не выходили за пределы таблицы */
-  table {
-    table-layout: auto; /* авто ширина столбцов */
-    word-break: break-word; /* перенос длинных слов */
-  }
-
-  th, td {
-    max-width: 1px; /* заставляет переносить текст */
-    overflow-wrap: break-word;
-  }
-
-
-  th {
-    background: #e6ecf5;
-    font-size: 20px;
-  }
-
-  tbody tr:nth-child(even) td {
-    background: #f8fafc;
-  }
-
-  .gold td {
-    background: #ffe680 !important;
-    font-weight: 900 !important;
-  }
-
-  @media (max-width: 900px) {
-  main {
-    grid-template-columns: 1fr; /* одна колонка */
-    padding: 10px;
-    overflow-y: auto;
-  }
-
-  .table-box {
-    font-size: 14px;
-  }
-
-  th, td {
-    font-size: 16px;
-    padding: 8px;
-    word-wrap: break-word; /* перенос длинного текста */
-  }
-
-  .apparatus {
-    font-size: 18px;
-    padding: 10px;
-  }
-
-  table {
-    table-layout: auto;  /* авто подстройка ширины столбцов */
-    width: 100%;
-  }
 }
 
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto; /* авто ширина столбцов */
+    word-break: break-word; /* перенос длинных слов */
+}
 
-  @media (min-width: 1800px) {
+th, td {
+    border: 1px solid #dce2e9;
+    padding: 14px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    max-width: 1px; /* позволяет переносить длинные имена */
+    overflow-wrap: break-word;
+}
+
+th {
+    background: #e6ecf5;
+    font-size: 20px;
+}
+
+tbody tr:nth-child(even) td {
+    background: #f8fafc;
+}
+
+.gold td {
+    background: #ffe680 !important;
+    font-weight: 900 !important;
+}
+
+/* ---------------------------- */
+/* АДАПТАЦИЯ ПОД МОБИЛЬНЫЕ ЭКРАНЫ */
+/* ---------------------------- */
+@media (max-width: 900px) {
+    main {
+        grid-template-columns: 1fr; /* одна колонка */
+        padding: 10px;
+    }
+
+    .table-box {
+        font-size: 14px;
+    }
+
+    th, td {
+        font-size: 16px;
+        padding: 8px;
+        word-wrap: break-word;
+    }
+
+    .apparatus {
+        font-size: 18px;
+        padding: 10px;
+    }
+
+    table {
+        table-layout: auto;
+        width: 100%;
+    }
+}
+
+/* ---------------------------- */
+/* АДАПТАЦИЯ ДЛЯ БОЛЬШИХ ЭКРАНОВ */
+/* ---------------------------- */
+@media (min-width: 1800px) {
     th, td { font-size: 22px; padding: 18px; }
     .table-title { font-size: 26px; }
     .apparatus { font-size: 24px; }
-  }
+}
 </style>
 </head>
 
 <body>
-  <header>
+<header>
     <div class="header-title">
-      <h1>ArtVin Cup</h1>
-      <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
-           alt="Логотип"
-           onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
+        <h1>ArtVin Cup</h1>
+        <img src="https://raw.githubusercontent.com/Miner229/table-site/main/ArtVinCup.jpg"
+             alt="Логотип"
+             onerror="this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
     </div>
     <select id="streamSelect" class="stream-select">
-      <option value="" disabled selected>Выберите поток</option>
-      <option value="1">поток 1</option>
-      <option value="2">поток 2</option>
-      <option value="3">поток 3</option>
-      <option value="4">поток 4</option>
-      <option value="5">поток 5</option>
-      <option value="6">поток 6</option>
-      <option value="7">поток 7</option>
+        <option value="" disabled selected>Выберите поток</option>
+        <option value="1">поток 1</option>
+        <option value="2">поток 2</option>
+        <option value="3">поток 3</option>
+        <option value="4">поток 4</option>
+        <option value="5">поток 5</option>
+        <option value="6">поток 6</option>
+        <option value="7">поток 7</option>
     </select>
-  </header>
+</header>
 
-  <main id="tables"></main>
+<main id="tables"></main>
 
-  <script>
+<script>
+/* ---------------------------- */
+/* НАСТРОЙКИ GOOGLE SHEET */
+/* ---------------------------- */
 const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
 
 const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
-  2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A18:B29","D17:E26","G17:H26"] },
-  3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
-  4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
-  5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E27"] },
-  6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
-  7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
+    1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
+    2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A18:B29","D17:E26","G17:H26"] },
+    3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
+    4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
+    5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E27"] },
+    6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
+    7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
 };
 
+/* ---------------------------- */
+/* ПЕРЕМЕННЫЕ ДЛЯ КОНТРОЛЯ */
+/* ---------------------------- */
 const container = document.getElementById("tables");
 const select = document.getElementById("streamSelect");
 
-const REFRESH_MS = 20000;
+const PAGE_SIZE = 2;          // показываем по 2 таблицы на странице
+const ROTATE_MS = 20000;      // время смены страниц
+const REFRESH_MS = 20000;     // время обновления данных
+
 let allTables = [];
+let pageIndex = 0;
+let rotateTimer = null;
 let refreshTimer = null;
 let currentStream = null;
 let loadGeneration = 0;
 
-// CSV-парсер
+/* ---------------------------- */
+/* ФУНКЦИИ CSV-PARSING */
+/* ---------------------------- */
 function parseCSV(text) {
-  return text
-    .trim()
-    .split(/\r?\n/)
-    .map(line =>
-      line
-        .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-        .map(v => v.replace(/^"+|"+$/g, "").trim())
-    );
+    return text
+        .trim()
+        .split(/\r?\n/)
+        .map(line =>
+            line
+                .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+                .map(v => v.replace(/^"+|"+$/g, "").trim())
+        );
 }
 
 function buildCsvUrl(sheet, range) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
-         `?tqx=out:csv&sheet=${encodeURIComponent(sheet)}` +
-         `&range=${range}&cacheBust=${Date.now()}`;
+    return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
+           `?tqx=out:csv&sheet=${encodeURIComponent(sheet)}` +
+           `&range=${range}&cacheBust=${Date.now()}`;
 }
 
-// Загрузка одной таблицы
+/* ---------------------------- */
+/* ЗАГРУЗКА ОДНОЙ ТАБЛИЦЫ */
+/* ---------------------------- */
 async function loadTable(sheet, range, index, gen) {
-  const res = await fetch(buildCsvUrl(sheet, range));
-  const text = await res.text();
-  if (gen !== loadGeneration) return null;
+    const res = await fetch(buildCsvUrl(sheet, range));
+    const text = await res.text();
+    if (gen !== loadGeneration) return null;
 
-  const rawRows = parseCSV(text);
-  const rows = rawRows.filter(r => r.some(c => c !== ""));
+    const rawRows = parseCSV(text);
+    const rows = rawRows.filter(r => r.some(c => c !== ""));
 
-  if (!rows.length) {
-    return `
-      <div class="table-box">
-        <div class="table-title">Таблица ${index}</div>
-        <div class="apparatus">Нет данных</div>
-      </div>`;
-  }
+    if (!rows.length) {
+        return `<div class="table-box">
+                    <div class="table-title">Таблица ${index}</div>
+                    <div class="apparatus">Нет данных</div>
+                </div>`;
+    }
 
-  // Аппарат
-  let apparatusText = rows[0].join(" ").trim()
-    .replace(/фио/gi, "")
-    .replace(/оценка/gi, "")
-    .trim();
-  if (!apparatusText) apparatusText = "Снаряд";
+    let apparatusText = rows[0].join(" ").trim()
+                          .replace(/фио/gi, "")
+                          .replace(/оценка/gi, "")
+                          .trim();
+    if (!apparatusText) apparatusText = "Снаряд";
 
-  // Заголовки
-  let headerIndex = rows.findIndex(r =>
-    r[0] && /фио/i.test(r[0]) &&
-    r[1] && /оценка/i.test(r[1])
-  );
-  if (headerIndex === -1) headerIndex = 1;
-  let headerRow = rows[headerIndex] || [];
-  let nameHeader = headerRow[0] || "ФИО";
-  let scoreHeader = headerRow[1] || "Оценка";
+    let headerIndex = rows.findIndex(r =>
+        r[0] && /фио/i.test(r[0]) &&
+        r[1] && /оценка/i.test(r[1])
+    );
+    if (headerIndex === -1) headerIndex = 1;
+    let headerRow = rows[headerIndex] || [];
+    let nameHeader = headerRow[0] || "ФИО";
+    let scoreHeader = headerRow[1] || "Оценка";
 
-  // Участники
-  let participants = rows.slice(headerIndex + 1);
+    let participants = rows.slice(headerIndex + 1);
 
-  // Максимальная оценка
-  let maxScore = -Infinity;
-  participants.forEach(r => {
-    const num = parseFloat((r[1]||"").replace(",", "."));
-    if (!isNaN(num) && num > maxScore) maxScore = num;
-  });
+    let maxScore = -Infinity;
+    participants.forEach(r => {
+        const num = parseFloat((r[1]||"").replace(",", "."));
+        if (!isNaN(num) && num > maxScore) maxScore = num;
+    });
 
-  let html = `
-    <div class="table-box">
-      <div class="table-title">Таблица ${index}</div>
-      <div class="apparatus">${apparatusText}</div>
-      <table>
-        <thead>
-          <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
-        </thead>
-        <tbody>
-  `;
+    let html = `<div class="table-box">
+                    <div class="table-title">Таблица ${index}</div>
+                    <div class="apparatus">${apparatusText}</div>
+                    <table>
+                        <thead>
+                            <tr><th>${nameHeader}</th><th>${scoreHeader}</th></tr>
+                        </thead>
+                        <tbody>`;
 
-  participants.forEach(row => {
-    const fio = (row[0]||"").trim();
-    const scoreText = (row[1]||"").trim();
-    if (!fio && !scoreText) return;
-    const num = parseFloat(scoreText.replace(",", "."));
-    const isGold = !isNaN(num) && num === maxScore;
-    html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
-  });
+    participants.forEach(row => {
+        const fio = (row[0]||"").trim();
+        const scoreText = (row[1]||"").trim();
+        if (!fio && !scoreText) return;
+        const num = parseFloat(scoreText.replace(",", "."));
+        const isGold = !isNaN(num) && num === maxScore;
+        html += `<tr class="${isGold ? "gold" : ""}"><td>${fio}</td><td>${scoreText}</td></tr>`;
+    });
 
-  html += `</tbody></table></div>`;
-  return html;
+    html += `</tbody></table></div>`;
+    return html;
 }
 
-// Отображение всех таблиц сразу
-function renderTables() {
-  if (!allTables.length) {
-    container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
-    return;
-  }
-  container.innerHTML = allTables.join("");
+/* ---------------------------- */
+/* РЕНДЕР СТРАНИЦЫ С 2 ТАБЛИЦАМИ */
+/* ---------------------------- */
+function renderPage() {
+    if (!allTables.length) {
+        container.innerHTML = "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
+        return;
+    }
+
+    const totalPages = Math.ceil(allTables.length / PAGE_SIZE);
+    if (pageIndex >= totalPages) pageIndex = 0;
+
+    const start = pageIndex * PAGE_SIZE;
+    const slice = allTables.slice(start, start + PAGE_SIZE);
+
+    container.style.gridTemplateColumns = `repeat(${Math.min(slice.length, 2)}, 1fr)`;
+    container.innerHTML = slice.join("");
+
+    pageIndex = (pageIndex + 1) % totalPages;
 }
 
-// Обновление таблиц для текущего потока
+/* ---------------------------- */
+/* ОБНОВЛЕНИЕ ВСЕХ ТАБЛИЦ */
+/* ---------------------------- */
 async function refreshTables() {
-  if (!currentStream) return;
-  const cfg = STREAMS[currentStream];
-  const gen = ++loadGeneration;
-  const tables = [];
+    if (!currentStream) return;
 
-  for (let i = 0; i < cfg.ranges.length; i++) {
-    try {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], i+1, gen);
-      tables.push(html);
-    } catch (e) {
-      tables.push(`
-        <div class="table-box">
-          <div class="table-title">Таблица ${i+1}</div>
-          <div style="padding:12px;text-align:center;color:#c00;">Ошибка загрузки</div>
-        </div>`);
+    const cfg = STREAMS[currentStream];
+    const gen = ++loadGeneration;
+    const tables = [];
+
+    for (let i = 0; i < cfg.ranges.length; i++) {
+        try {
+            const html = await loadTable(cfg.sheet, cfg.ranges[i], i + 1, gen);
+            tables.push(html);
+        } catch(e) {
+            tables.push(`<div class="table-box">
+                            <div class="table-title">Таблица ${i+1}</div>
+                            <div style="padding:12px;text-align:center;color:#c00;">Ошибка загрузки</div>
+                        </div>`);
+        }
     }
-  }
 
-  if (gen !== loadGeneration) return;
-  allTables = tables;
-  renderTables();
+    if (gen !== loadGeneration) return;
+    allTables = tables;
 }
 
-// Полная загрузка выбранного потока
+/* ---------------------------- */
+/* ЗАГРУЗКА И ОТОБРАЖЕНИЕ ВЫБРАННОГО ПОТОКА */
+/* ---------------------------- */
 async function renderStream(stream) {
-  const cfg = STREAMS[stream];
-  currentStream = stream;
+    const cfg = STREAMS[stream];
+    currentStream = stream;
 
-  if (!cfg) {
-    container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных</p>";
-    return;
-  }
-
-  container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
-
-  clearInterval(refreshTimer);
-
-  const gen = ++loadGeneration;
-  const tables = [];
-
-  for (let i = 0; i < cfg.ranges.length; i++) {
-    try {
-      const html = await loadTable(cfg.sheet, cfg.ranges[i], i+1, gen);
-      tables.push(html);
-    } catch (e) {
-      tables.push(`
-        <div class="table-box">
-          <div class="table-title">Таблица ${i+1}</div>
-          <div style="padding:12px;text-align:center;color:#c00;">Ошибка загрузки</div>
-        </div>`);
+    if (!cfg) {
+        container.innerHTML = "<p style='text-align:center;color:#c00;'>Нет данных</p>";
+        return;
     }
-  }
 
-  if (gen !== loadGeneration) return;
-  allTables = tables;
-  renderTables();
+    container.innerHTML = "<p style='text-align:center;color:#555;'>Загрузка...</p>";
 
-  // автообновление каждые 20 секунд
-  refreshTimer = setInterval(refreshTables, REFRESH_MS);
+    clearInterval(rotateTimer);
+    clearInterval(refreshTimer);
+
+    const gen = ++loadGeneration;
+    const tables = [];
+
+    for (let i = 0; i < cfg.ranges.length; i++) {
+        try {
+            const html = await loadTable(cfg.sheet, cfg.ranges[i], i+1, gen);
+            tables.push(html);
+        } catch(e) {
+            tables.push(`<div class="table-box">
+                            <div class="table-title">Таблица ${i+1}</div>
+                            <div style="padding:12px;text-align:center;color:#c00;">Ошибка загрузки</div>
+                        </div>`);
+        }
+    }
+
+    if (gen !== loadGeneration) return;
+
+    allTables = tables;
+    pageIndex = 0;
+    renderPage();
+
+    if (allTables.length > PAGE_SIZE) {
+        rotateTimer = setInterval(renderPage, ROTATE_MS);
+    }
+
+    refreshTimer = setInterval(refreshTables, REFRESH_MS);
 }
 
-// Смена потока
+/* ---------------------------- */
+/* СМЕНА ПОТОКА ПРИ ВЫБОРЕ */
+/* ---------------------------- */
 select.addEventListener("change", () => {
-  const s = select.value;
-  if (s) renderStream(s);
+    const s = select.value;
+    if (s) renderStream(s);
 });
 </script>
-
+</body>
+</html>
