@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ArtVin Cup</title>
-
 <style>
 body {
     margin: 0;
@@ -98,21 +97,24 @@ main {
 table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed; /* фиксированная ширина ячеек */
+    table-layout: fixed;
 }
 
 th, td {
     border: 1px solid #dce2e9;
-    padding: 20px 14px; /* увеличиваем вертикальный padding */
+    padding: 12px 10px; /* уменьшили, чтобы строки помещались */
     text-align: center;
     font-size: 18px;
     font-weight: 700;
-    max-width: none; /* убираем ограничение ширины */
-    overflow-wrap: normal; /* убираем перенос слов */
-    white-space: nowrap; /* текст не переносится на новую строку */
+    max-width: none;
+    overflow-wrap: break-word; /* чтобы длинные имена не ломали строки */
+    white-space: nowrap;
 }
 
-
+/* Фиксируем высоту строк, чтобы JS не менял размеры */
+tbody tr {
+    height: 40px; /* подбирается под среднее количество участников */
+}
 
 th {
     background: #e6ecf5;
@@ -133,9 +135,11 @@ tbody tr:nth-child(even) td {
         grid-template-columns: 1fr;
         padding: 10px;
     }
-    th, td { font-size: 16px; padding: 12px 8px; }
+    th, td { font-size: 16px; padding: 10px 6px; }
     .apparatus { font-size: 16px; padding: 8px; }
+    tbody tr { height: 35px; }
 }
+    
 </style>
 </head>
 
