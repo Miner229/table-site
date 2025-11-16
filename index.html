@@ -186,9 +186,9 @@ const STREAMS = {
 const container = document.getElementById("tables");
 const select = document.getElementById("streamSelect");
 
-const PAGE_SIZE  = 2;       // показываем по 2 таблицы
-const ROTATE_MS  = 20000;   // листаем страницы
-const REFRESH_MS = 21000;   // перезагружаем данные
+const PAGE_SIZE  = 2;
+const ROTATE_MS  = 20000;
+const REFRESH_MS = 21000;
 
 let allTables      = [];
 let pageIndex      = 0;
@@ -197,8 +197,11 @@ let refreshTimer   = null;
 let currentStream  = null;
 let loadGeneration = 0;
 
-// ---------- CSV ----------
+// 🔥 Добавлено: блокировка ротации при загрузке
+let isLoading = false;
 
+
+// ---------- CSV ----------
 function parseCSV(text) {
   return text
     .trim()
@@ -222,15 +225,15 @@ function parseScore(val) {
   return Number.isFinite(num) ? num : NaN;
 }
 
-// ---------- Загрузка одной таблицы из диапазона ----------
 
+// ---------- Загрузка одной таблицы ----------
 async function loadTable(sheet, range, index, gen) {
   try {
     const res = await fetch(buildCsvUrl(sheet, range));
     if (!res.ok) throw new Error("network");
     const text = await res.text();
 
-    if (gen !== loadGeneration) return null; // уже новая загрузка
+    if (gen !== loadGeneration) return null;
 
     let rows = parseCSV(text).filter(r => r.some(c => c !== ""));
     if (rows.length < 3) {
@@ -241,25 +244,20 @@ async function loadTable(sheet, range, index, gen) {
         </div>`;
     }
 
-    // 1-я строка диапазона — название снаряда (В/У, Бревно и т.д.)
     const apparatusText = rows[0][0] || "Снаряд";
 
-    // 2-я строка — заголовки ФИО / ОЦЕНКА
     const headerRow   = rows[1] || [];
     const nameHeader  = headerRow[0] || "ФИО";
     const scoreHeader = headerRow[1] || "ОЦЕНКА";
 
-    // Остальные строки — участники
     const participants = rows.slice(2);
 
-    // Находим максимальную оценку
     let maxScore = -Infinity;
     participants.forEach(r => {
       const s = parseScore(r[1]);
       if (!isNaN(s) && s > maxScore) maxScore = s;
     });
 
-    // Сбор HTML
     let html = `
       <div class="table-box">
         <div class="table-title">Таблица ${index}</div>
@@ -306,9 +304,11 @@ async function loadTable(sheet, range, index, gen) {
   }
 }
 
-// ---------- Пагинация (по 2 таблицы) ----------
 
+// ---------- Пагинация ----------
 function renderPage() {
+  if (isLoading) return; // 🔥 НЕ листаем, если идёт загрузка
+
   if (!allTables.length) {
     container.innerHTML =
       "<p style='text-align:center;color:#555;'>Нет данных для этого потока</p>";
@@ -326,28 +326,34 @@ function renderPage() {
   pageIndex++;
 }
 
-// ---------- Загрузка всех таблиц потока ----------
 
+// ---------- Загрузка всех таблиц ----------
 async function loadAllTablesForStream(stream) {
   const cfg = STREAMS[stream];
   if (!cfg) return;
 
   const gen = ++loadGeneration;
 
+  isLoading = true; // 🔥 БЛОКИРУЕМ ротацию
+
   const promises = cfg.ranges.map((range, idx) =>
     loadTable(cfg.sheet, range, idx + 1, gen)
   );
 
   const tables = await Promise.all(promises);
+
   if (gen !== loadGeneration) return;
 
   allTables = tables;
   pageIndex = 0;
+
+  isLoading = false; // 🔥 РАЗБЛОКИРОВКА
+
   renderPage();
 }
 
-// ---------- Переключение потока ----------
 
+// ---------- Переключение потока ----------
 async function renderStream(stream) {
   currentStream = stream;
   container.innerHTML =
@@ -358,11 +364,14 @@ async function renderStream(stream) {
 
   await loadAllTablesForStream(stream);
 
-  if (allTables.length > PAGE_SIZE) {
-    rotateTimer = setInterval(renderPage, ROTATE_MS);
-  }
+  rotateTimer = setInterval(() => {
+    if (!isLoading) renderPage(); // 🔥 перелистываем только если НЕ грузит
+  }, ROTATE_MS);
+
   refreshTimer = setInterval(() => {
-    if (currentStream) loadAllTablesForStream(currentStream);
+    if (!isLoading && currentStream) {
+      loadAllTablesForStream(currentStream);
+    }
   }, REFRESH_MS);
 }
 
@@ -370,6 +379,7 @@ select.addEventListener("change", () => {
   const s = select.value;
   if (s) renderStream(s);
 });
+
 </script>
 
 
