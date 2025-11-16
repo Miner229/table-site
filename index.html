@@ -197,7 +197,6 @@ let refreshTimer   = null;
 let currentStream  = null;
 let loadGeneration = 0;
 
-// 🔥 Добавлено: блокировка ротации при загрузке
 let isLoading = false;
 
 
@@ -305,9 +304,10 @@ async function loadTable(sheet, range, index, gen) {
 }
 
 
+
 // ---------- Пагинация ----------
 function renderPage() {
-  if (isLoading) return; // 🔥 НЕ листаем, если идёт загрузка
+  if (isLoading) return; // не листаем пока грузит
 
   if (!allTables.length) {
     container.innerHTML =
@@ -327,14 +327,15 @@ function renderPage() {
 }
 
 
-// ---------- Загрузка всех таблиц ----------
+
+// ---------- Полная загрузка таблиц ----------
 async function loadAllTablesForStream(stream) {
   const cfg = STREAMS[stream];
   if (!cfg) return;
 
   const gen = ++loadGeneration;
 
-  isLoading = true; // 🔥 БЛОКИРУЕМ ротацию
+  isLoading = true;
 
   const promises = cfg.ranges.map((range, idx) =>
     loadTable(cfg.sheet, range, idx + 1, gen)
@@ -347,10 +348,33 @@ async function loadAllTablesForStream(stream) {
   allTables = tables;
   pageIndex = 0;
 
-  isLoading = false; // 🔥 РАЗБЛОКИРОВКА
+  isLoading = false;
 
   renderPage();
 }
+
+
+
+// ---------- 🔥 ТИХИЙ refresh (НЕ СБРАСЫВАЕТ страницу) ----------
+async function silentRefresh() {
+  if (!currentStream) return;
+
+  const cfg = STREAMS[currentStream];
+  const gen = ++loadGeneration;
+
+  const newTables = await Promise.all(
+    cfg.ranges.map((range, idx) =>
+      loadTable(cfg.sheet, range, idx + 1, gen)
+    )
+  );
+
+  if (gen !== loadGeneration) return;
+
+  // НЕ сбрасываем pageIndex
+  // НЕ вызываем renderPage()
+  allTables = newTables;
+}
+
 
 
 // ---------- Переключение потока ----------
@@ -365,12 +389,12 @@ async function renderStream(stream) {
   await loadAllTablesForStream(stream);
 
   rotateTimer = setInterval(() => {
-    if (!isLoading) renderPage(); // 🔥 перелистываем только если НЕ грузит
+    if (!isLoading) renderPage();
   }, ROTATE_MS);
 
   refreshTimer = setInterval(() => {
     if (!isLoading && currentStream) {
-      loadAllTablesForStream(currentStream);
+      silentRefresh(); // обновляет, НО не ломает ротацию
     }
   }, REFRESH_MS);
 }
