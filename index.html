@@ -321,7 +321,6 @@ function renderPage() {
   const start = pageIndex * PAGE_SIZE;
   const slice = allTables.slice(start, start + PAGE_SIZE);
 
-  container.style.gridTemplateColumns = `repeat(${slice.length}, 1fr)`;
   container.innerHTML = slice.join("");
 
   pageIndex++;
