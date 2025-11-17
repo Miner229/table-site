@@ -137,7 +137,7 @@ tbody tr:nth-child(even) td {
     }
 
     table {
-        min-width: 400px !important; /* таблица не будет сжиматься уже нормы */
+        min-width: 400px !important; 
     }
 
     th, td {
@@ -200,8 +200,6 @@ let loadGeneration = 0;
 
 let isLoading = false;
 
-
-// ---------- CSV ----------
 function parseCSV(text) {
   return text
     .trim()
@@ -225,8 +223,6 @@ function parseScore(val) {
   return Number.isFinite(num) ? num : NaN;
 }
 
-
-// ---------- Загрузка одной таблицы ----------
 async function loadTable(sheet, range, index, gen) {
   try {
     const res = await fetch(buildCsvUrl(sheet, range));
@@ -305,10 +301,8 @@ async function loadTable(sheet, range, index, gen) {
 }
 
 
-
-// ---------- Пагинация ----------
 function renderPage() {
-  if (isLoading) return; // не листаем пока грузит
+  if (isLoading) return; 
 
   if (!allTables.length) {
     container.innerHTML =
@@ -328,8 +322,6 @@ function renderPage() {
 }
 
 
-
-// ---------- Полная загрузка таблиц ----------
 async function loadAllTablesForStream(stream) {
   const cfg = STREAMS[stream];
   if (!cfg) return;
@@ -354,9 +346,6 @@ async function loadAllTablesForStream(stream) {
   renderPage();
 }
 
-
-
-// ---------- 🔥 ТИХИЙ refresh (НЕ СБРАСЫВАЕТ страницу) ----------
 async function silentRefresh() {
   if (!currentStream) return;
 
@@ -371,14 +360,9 @@ async function silentRefresh() {
 
   if (gen !== loadGeneration) return;
 
-  // НЕ сбрасываем pageIndex
-  // НЕ вызываем renderPage()
   allTables = newTables;
 }
 
-
-
-// ---------- Переключение потока ----------
 async function renderStream(stream) {
   currentStream = stream;
   container.innerHTML =
@@ -395,7 +379,7 @@ async function renderStream(stream) {
 
   refreshTimer = setInterval(() => {
     if (!isLoading && currentStream) {
-      silentRefresh(); // обновляет, НО не ломает ротацию
+      silentRefresh();
     }
   }, REFRESH_MS);
 }
