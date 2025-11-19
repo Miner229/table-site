@@ -139,14 +139,14 @@ tbody tr:nth-child(even) td {
 
 @media (max-width: 900px) {
 
-    /* Страница может скроллиться только вверх-вниз */
+    /* Страница может скроллиться вертикально */
     body {
         overflow-y: auto !important;
         overflow-x: hidden !important;
         -webkit-overflow-scrolling: touch !important;
     }
 
-    /* Контейнер таблиц — обычная вертикальная колонка */
+    /* Контейнер таблиц — просто список таблиц вниз */
     main {
         display: flex !important;
         flex-direction: column !important;
@@ -156,43 +156,40 @@ tbody tr:nth-child(even) td {
         overflow: visible !important;
     }
 
-    /* Каждая таблица занимает всю ширину экрана */
+    /* Таблица должна тянуться вниз полностью */
     .table-box {
         width: 100% !important;
         max-width: 100% !important;
-        overflow: hidden !important; /* Никаких горизонтальных скроллов */
-        box-sizing: border-box;
+        overflow: visible !important;  /* 🚀 убираем скрытие высоты */
     }
 
-    /* Таблица адаптируется к экрану */
+    /* Таблица растягивается, НЕ режется */
     table {
         width: 100% !important;
-        table-layout: auto !important; /* ДАЁТ УЖИМАТЬ КОЛОНКИ */
-        border-collapse: collapse;
-        box-sizing: border-box;
+        table-layout: auto !important;
+        overflow: visible !important; /* 🚀 вся таблица видна */
     }
 
-    /* Ячейки подстраиваются под ширину */
+    /* Участники переносятся, ничего не ломается */
     th, td {
-        white-space: normal !important; /* Разрешает перенос строк */
-        word-break: break-word !important; /* переносит длинные ФИО */
+        white-space: normal !important; 
+        word-break: break-word !important;
+        overflow: visible !important;
         text-overflow: clip !important;
-        overflow: visible !important; 
         font-size: 14px !important;
         padding: 8px 6px !important;
     }
 
     .apparatus {
         font-size: 16px !important;
-        padding: 8px !important;
+        padding: 10px !important;
     }
 
     .table-title {
         font-size: 18px !important;
-        padding: 10px !important;
+        padding: 12px !important;
     }
 }
-
 
 </style>
 </head>
