@@ -139,42 +139,47 @@ tbody tr:nth-child(even) td {
 
 @media (max-width: 900px) {
 
-    /* включаем вертикальный скролл страницы */
+    /* Страница может скроллиться только вверх-вниз */
     body {
         overflow-y: auto !important;
+        overflow-x: hidden !important;
         -webkit-overflow-scrolling: touch !important;
     }
 
-    /* сам main становится колонкой, таблицы одна под другой */
+    /* Контейнер таблиц — обычная вертикальная колонка */
     main {
         display: flex !important;
         flex-direction: column !important;
-        gap: 16px !important;
-        padding: 10px !important;
+        gap: 20px !important;
+        padding: 12px !important;
         height: auto !important;
         overflow: visible !important;
     }
 
-    /* каждая таблица занимает всю ширину экрана */
+    /* Каждая таблица занимает всю ширину экрана */
     .table-box {
         width: 100% !important;
-        overflow: hidden !important; /* убираем горизонтальный скролл */
-        border-radius: 12px;
-        box-shadow: 0 3px 12px rgba(0,0,0,0.15);
+        max-width: 100% !important;
+        overflow: hidden !important; /* Никаких горизонтальных скроллов */
+        box-sizing: border-box;
     }
 
-    /* сама таблица должна сжиматься красиво */
+    /* Таблица адаптируется к экрану */
     table {
         width: 100% !important;
-        table-layout: fixed !important;
+        table-layout: auto !important; /* ДАЁТ УЖИМАТЬ КОЛОНКИ */
+        border-collapse: collapse;
+        box-sizing: border-box;
     }
 
+    /* Ячейки подстраиваются под ширину */
     th, td {
-        font-size: 14px !important;
-        padding: 8px 4px !important;
-        white-space: normal !important; /* разрешаем перенос строк */
-        word-break: break-word !important;
+        white-space: normal !important; /* Разрешает перенос строк */
+        word-break: break-word !important; /* переносит длинные ФИО */
         text-overflow: clip !important;
+        overflow: visible !important; 
+        font-size: 14px !important;
+        padding: 8px 6px !important;
     }
 
     .apparatus {
@@ -187,6 +192,7 @@ tbody tr:nth-child(even) td {
         padding: 10px !important;
     }
 }
+
 
 </style>
 </head>
