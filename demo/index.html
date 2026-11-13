@@ -261,7 +261,7 @@ tbody tr:nth-child(even) td {
 <header>
     <div class="header-title">
         <h1>ArtVin Cup</h1>
-        <img src="ArtVinCup.jpg" alt="Логотип"
+        <img src="../ArtVinCup.jpg" alt="Логотип"
              onerror="this.onerror=null;this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
     </div>
     <div class="header-controls">
@@ -294,17 +294,17 @@ tbody tr:nth-child(even) td {
     <div class="row">
         <span class="label">Размер шрифта</span>
         <button class="square" id="fsMinus">−</button>
-        <input type="range" id="fsRange" min="12" max="120" step="1">
+        <input type="range" id="fsRange" min="12" max="300" step="1">
         <button class="square" id="fsPlus">+</button>
-        <input type="number" id="fsNum" min="12" max="120" step="1">
+        <input type="number" id="fsNum" min="12" max="300" step="1">
         <span class="unit">px</span>
         <button id="autoFit" title="Самый крупный шрифт, при котором все таблицы потока помещаются по высоте">Макс. шрифт</button>
     </div>
 
     <div class="row">
         <span class="label">Высота строк</span>
-        <input type="range" id="padRange" min="0" max="30" step="1">
-        <input type="number" id="padNum" min="0" max="30" step="1">
+        <input type="range" id="padRange" min="0" max="60" step="1">
+        <input type="number" id="padNum" min="0" max="60" step="1">
         <span class="unit">px</span>
     </div>
 
@@ -339,7 +339,7 @@ const STREAMS = {
 };
 
 const REFRESH_MS = 21000;
-const FS_MIN = 12, FS_MAX = 120;
+const FS_MIN = 12, FS_MAX = 300;
 const STORAGE_KEY = "artvin-screen-test";
 
 const container   = document.getElementById("tables");
@@ -668,7 +668,7 @@ async function renderStream(stream) {
 /* ---------- панель ---------- */
 function applySettings() {
   state.fs       = clamp(state.fs, FS_MIN, FS_MAX, 28);
-  state.pad      = clamp(state.pad, 0, 30, 8);
+  state.pad      = clamp(state.pad, 0, 60, 8);
   state.interval = clamp(state.interval, 3, 600, 20);
   if (!["one", "two", "split"].includes(state.mode)) state.mode = "one";
 
