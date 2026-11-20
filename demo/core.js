@@ -195,7 +195,10 @@ function autoRotation(stream) {
   if (!placed.length) return 1;
   let r = 1;
   for (let k = 1; k <= n; k++) {
-    const done = placed.every(g => hasScore(g, appAtRotation(g.start, k, stream.gender)));
+    const done = placed.every(g => {
+      const a = appAtRotation(g.start, k, stream.gender);
+      return !stream.apps.includes(a) || hasScore(g, a);   // apparatus without a column can't block
+    });
     if (done) r = k + 1; else break;
   }
   return Math.min(r, n);
@@ -206,7 +209,21 @@ function timeRotation(times, n, now) {
   const passed = times.filter(t => t <= m).length;
   return Math.max(1, Math.min(n, passed || 1));
 }
-// Returns { rotation, mode, finished }
+// Everyone has a score on every apparatus → the stream is over
+function isFinished(stream) {
+  const placed = stream.gymnasts.filter(g => g.start);
+  return placed.length > 0 && placed.every(g => stream.apps.every(a => hasScore(g, a)));
+}
+// Per apparatus at rotation r: { done, total } — how many of the group on it already have a score
+function rotationProgress(stream, r) {
+  const groups = groupsAt(stream, r);
+  const res = {};
+  stream.apps.forEach(a => {
+    res[a] = { done: groups[a].filter(g => hasScore(g, a)).length, total: groups[a].length };
+  });
+  return res;
+}
+// Returns { rotation, mode, total, finished }
 function currentRotation(stream, st, modeOverride, now) {
   const n = ORDER[stream.gender].length;
   const mode = modeOverride || st.mode;
@@ -214,7 +231,7 @@ function currentRotation(stream, st, modeOverride, now) {
   let r = manual;
   if (mode === "auto") r = Math.max(manual, autoRotation(stream));
   else if (mode === "time") r = st.times.length ? timeRotation(st.times, n, now) : manual;
-  return { rotation: r, mode, total: n };
+  return { rotation: r, mode, total: n, finished: isFinished(stream) };
 }
 // Gymnasts per apparatus at rotation r. If nobody has a start apparatus, everyone is on every apparatus.
 function groupsAt(stream, r) {
@@ -286,7 +303,7 @@ async function scriptPost(body) {
 }
 
 /* ---------- demo store (localStorage, shared between tabs of one browser) ---------- */
-const DEMO_KEY = "artvin-demo-v2";
+const DEMO_KEY = "artvin-demo-v3";
 const DEMO_NAMES_M = [
   "Абенов Арман", "Бекетов Данияр", "Волков Матвей", "Галиев Тимур", "Демченко Илья", "Ерланов Санжар",
   "Жумабеков Алихан", "Зайцев Артём", "Исаев Карим", "Калиев Нурсултан", "Литвинов Марк", "Муратов Ерасыл",
@@ -303,6 +320,13 @@ const DEMO_NAMES_F = [
 ];
 const DEMO_CLUBS = ["ArtVin", "г.Павлодар", "г.Актау", "Evdokimov School", "QZQ School", "г.Караганда", "г.Семей", "Gymteam"];
 
+const DEMO_FIRST_M = ["Арман", "Данияр", "Матвей", "Тимур", "Илья", "Санжар", "Алихан", "Артём", "Карим", "Нурсултан"];
+const DEMO_FIRST_F = ["Аружан", "Алиса", "Амина", "Ксения", "Айша", "Варвара", "Томирис", "Полина", "Дана", "Виктория"];
+function demoNames(full, firsts, count) {
+  // surnames from the list, first names rotated so every combination is unique
+  return Array.from({ length: count }, (_, i) =>
+    full[i % full.length].split(" ")[0] + " " + firsts[(i + Math.floor(i / full.length) * 5) % firsts.length]);
+}
 function demoTab(names, gender) {
   const apps = ORDER[gender];
   const header = ["№", "ФИО", "Год", "Клуб", "Старт"].concat(apps.map(a => APPARATUS[a].short), ["Сумма"]);
@@ -331,7 +355,10 @@ function demoInit(force) {
       ["Демо · Мальчики", "Демо М", "М", "1", "авто", times, "да"],
       ["Демо · Девочки", "Демо Ж", "Ж", "1", "авто", times.split(" ").slice(0, 4).join(" "), ""],
     ],
-    tabs: { "Демо М": demoTab(DEMO_NAMES_M, "M"), "Демо Ж": demoTab(DEMO_NAMES_F, "F") },
+    tabs: {
+      "Демо М": demoTab(demoNames(DEMO_NAMES_M, DEMO_FIRST_M, 60), "M"),
+      "Демо Ж": demoTab(demoNames(DEMO_NAMES_F, DEMO_FIRST_F, 40), "F"),
+    },
   };
   // pre-fill part of rotation 1 so the board looks alive
   ["Демо М", "Демо Ж"].forEach(tab => {
@@ -365,7 +392,7 @@ async function loadStream(src, st) {
 global.ArtVin = {
   CONFIG, APPARATUS, ORDER, ROT_MODES,
   norm, esc, parseScore, fmtScore, parseCSV, parseSettings, parseStream, parseGender, apparatusFromText,
-  appAtRotation, autoRotation, currentRotation, groupsAt, rankList, hasScore,
+  appAtRotation, autoRotation, currentRotation, groupsAt, rankList, hasScore, isFinished, rotationProgress,
   scriptGet, scriptPost, scriptUrl,
   demoInit, demoSave, randomScore, DEMO_KEY,
   loadSettings, loadStream,
