@@ -2,758 +2,663 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ArtVin Cup — тест экрана</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#070605" />
+<link rel="icon" href="logo-emblem.png" />
+<title>ArtVin Cup — результаты</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,500;0,600;0,700;0,800;0,900;1,800;1,900&family=Kaushan+Script&display=swap" rel="stylesheet" />
 <style>
 :root {
-    --fs: 28px;      /* размер шрифта строк */
-    --pad: 8px;      /* вертикальный отступ в ячейках */
-    --cols: 1;       /* сколько таблиц рядом */
+  --bg: #070605;
+  --gold-1: #ffe6a8;
+  --gold-2: #f2bd57;
+  --gold-3: #cf902f;
+  --gold-4: #7d5418;
+  --gold-grad: linear-gradient(100deg, #fff0c4 0%, #f5c766 30%, #d99a36 62%, #a86f22 100%);
+  --text: #f7f2e8;
+  --muted: #9d9483;
+  --row: rgba(22, 19, 15, .86);
+  --line: rgba(242, 189, 87, .16);
+  --silver: linear-gradient(135deg, #ffffff, #c9ced6 55%, #8d949e);
+  --bronze: linear-gradient(135deg, #f6c79a, #cd8a4f 55%, #8a5328);
+  --fs: 42px;           /* name size on the hall screen */
+  --head-h: 112px;
 }
-
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
 body {
-    margin: 0;
-    background: #f7f9fb;
-    font-family: "Segoe UI", Arial, sans-serif;
-    overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Montserrat", "Segoe UI", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
+/* ---------- background light trails (from the banner) ---------- */
+.bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  background:
+    radial-gradient(1200px 500px at 85% 115%, rgba(217,154,54,.22), transparent 60%),
+    radial-gradient(900px 400px at -10% -20%, rgba(217,154,54,.16), transparent 60%),
+    var(--bg); }
+.bg svg { position: absolute; width: 100%; height: 100%; opacity: .75; }
+
+/* ---------- header ---------- */
 header {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 100px;
-    background: #0069d9;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 40px;
-    box-shadow: 0 3px 10px rgba(0,0,0,.25);
-    z-index: 10;
+  position: relative; z-index: 2;
+  height: var(--head-h);
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: 0 40px;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, rgba(242,189,87,.7), transparent) 1;
 }
-
-.header-title {
-    display: flex;
-    align-items: center;
-    gap: 15px;
+.brand { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.brand img { height: calc(var(--head-h) - 26px); width: auto; filter: drop-shadow(0 0 10px rgba(242,189,87,.25)); }
+.wordmark { display: flex; align-items: baseline; line-height: 1; white-space: nowrap; }
+.wordmark .artvin {
+  font-weight: 900; font-style: italic; letter-spacing: .02em;
+  font-size: 54px; color: #fff;
+  text-shadow: 0 2px 0 rgba(0,0,0,.4);
 }
-
-.header-title h1 {
-    margin: 0;
-    font-size: 26px;
-    font-weight: 800;
+.wordmark .cup {
+  font-family: "Kaushan Script", cursive; font-size: 60px; margin-left: 10px;
+  background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 12px rgba(242,189,87,.45));
 }
-
-.header-title img {
-    height: 80px;
-    width: auto;
-    border-radius: 6px;
-    background: #fff;
-    padding: 4px;
+.memorial {
+  margin-left: 10px; padding-left: 18px; border-left: 1px solid rgba(242,189,87,.45);
+  font-size: 15px; letter-spacing: .22em; text-transform: uppercase; color: #d8cfbf; line-height: 1.5;
 }
+.memorial b { display: block; color: var(--gold-2); font-weight: 700; letter-spacing: .12em; }
 
-.header-controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.stream { text-align: right; min-width: 0; }
+.stream select {
+  appearance: none; -webkit-appearance: none;
+  background: transparent; border: 0; color: #fff; cursor: pointer;
+  font: 800 30px/1.1 "Montserrat", sans-serif; letter-spacing: .08em; text-transform: uppercase;
+  text-align: right; text-align-last: right; padding: 0 26px 0 0; max-width: 100%;
+  background-image: linear-gradient(45deg, transparent 50%, var(--gold-2) 50%), linear-gradient(135deg, var(--gold-2) 50%, transparent 50%);
+  background-position: calc(100% - 10px) 55%, calc(100% - 3px) 55%;
+  background-size: 7px 7px, 7px 7px; background-repeat: no-repeat;
 }
+.stream select option { background: #15120e; color: #fff; font-size: 18px; }
+.rot { margin-top: 6px; font-size: 17px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--gold-2); }
+.rot .pending { color: var(--muted); letter-spacing: .06em; text-transform: none; margin-left: 10px; }
 
-.stream-select, .gear {
-    font-size: 16px;
-    padding: 8px 14px;
-    border: none;
-    border-radius: 6px;
-    color: #007bff;
-    background: #fff;
-    cursor: pointer;
-    font-weight: 600;
+/* ---------- apparatus strip ---------- */
+nav.apps {
+  position: relative; z-index: 2;
+  display: flex; gap: 10px; padding: 14px 40px 0; align-items: center;
 }
+nav.apps button {
+  flex: 1 1 0; min-width: 0;
+  font: 700 17px/1 "Montserrat", sans-serif; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); background: rgba(255,255,255,.03);
+  border: 1px solid rgba(242,189,87,.18); border-radius: 999px; padding: 10px 12px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: .3s;
+}
+nav.apps button.empty { opacity: .35; }
+nav.apps button.on { color: #1b1306; background: var(--gold-grad); border-color: transparent; box-shadow: 0 0 22px rgba(242,189,87,.35); }
+nav.apps button.auto { flex: 0 0 auto; display: none; }
 
+/* ---------- board ---------- */
 main {
-    position: absolute;
-    top: 100px; bottom: 0; left: 0; right: 0;
-    padding: 6px;
-    box-sizing: border-box;
-
-    display: grid;
-    grid-template-columns: repeat(var(--cols), 1fr);
-    gap: 12px;
-    grid-auto-rows: 1fr;
+  position: relative; z-index: 1;
+  height: calc(100% - var(--head-h) - 52px);
+  padding: 10px 40px 26px;
+  display: flex; flex-direction: column;
 }
-
-.table-box {
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    min-height: 0;
-    min-width: 0;
+.app-head { display: flex; align-items: center; gap: 22px; padding: 4px 4px 12px; }
+.app-head h2 {
+  margin: 0; font-size: calc(var(--fs) * 1.25); font-weight: 900; font-style: italic;
+  letter-spacing: .04em; text-transform: uppercase; line-height: 1.05;
+  background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+.app-head .page { font-size: 18px; color: var(--muted); font-weight: 600; letter-spacing: .12em; }
+.app-head .progress { flex: 1; height: 3px; border-radius: 3px; background: rgba(242,189,87,.14); overflow: hidden; align-self: center; }
+.app-head .progress i { display: block; height: 100%; width: 0; background: var(--gold-grad); }
+.app-head .progress i.run { animation: prog linear forwards; }
+@keyframes prog { from { width: 0; } to { width: 100%; } }
 
-.table-title {
-    background: #007bff;
-    color: #fff;
-    text-align: center;
-    padding: var(--pad) 12px;
-    font-size: calc(var(--fs) * 1.15);
-    font-weight: 900;
+/* ---------- results table (Olympic broadcast style) ---------- */
+.tbl { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.thead, .row {
+  display: grid; align-items: stretch; font-size: var(--fs);
+  grid-template-columns: calc(var(--fs) * 2.2) minmax(0, 1fr) minmax(0, calc(var(--fs) * 6.5)) calc(var(--fs) * 4.6);
 }
+.thead {
+  font-size: calc(var(--fs) * .4); font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--gold-2);
+  background: linear-gradient(180deg, #1d1912, #120f0b); border: 1px solid rgba(242,189,87,.35); border-bottom: 2px solid var(--gold-3);
+  border-radius: 10px 10px 0 0;
+}
+.thead span { padding: .75em .9em; white-space: nowrap; }
+.thead span:first-child, .thead span:last-child { text-align: center; padding-left: .3em; padding-right: .3em; }
+.thead span.c-name { padding-left: calc(var(--fs) * .5); }
+.thead span.c-club { padding-left: 0; }
 
-.apparatus {
-    background: #eef4ff;
-    padding: var(--pad) 12px;
-    text-align: center;
-    font-size: calc(var(--fs) * 1.1);
-    font-weight: 800;
-    border-bottom: 1px solid #dce2e9;
-}
+.table { flex: 1; min-height: 0; position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 0;
+  border-left: 1px solid rgba(242,189,87,.2); border-right: 1px solid rgba(242,189,87,.2); }
+.table.fade { animation: fade .45s ease; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
-/* одна таблица, разбитая на две колонки */
-.split {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
+.row { flex-shrink: 0; position: relative; line-height: 1.5; background: #0e0c09; border-bottom: 1px solid rgba(255,255,255,.07); }
+.row:nth-child(even) { background: #16130f; }
+.row:last-child { border-bottom: 1px solid rgba(242,189,87,.25); border-radius: 0 0 10px 10px; overflow: hidden; }
+.row > span { display: flex; align-items: center; min-width: 0; }
+.row .place {
+  justify-content: center; font-weight: 900; font-size: .8em; font-variant-numeric: tabular-nums;
+  background: #2a251e; color: #fff;
 }
-.split .half {
-    flex: 1 1 0;
-    min-width: 0;
+.row .name { padding: 0 .4em 0 .5em; white-space: nowrap; overflow: hidden; }
+.row .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .name b { font-weight: 800; letter-spacing: .02em; }
+.row .name i { font-style: normal; font-weight: 500; }
+.row .club { font-size: .48em; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; padding-right: .8em; }
+.row .club span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .score {
+  justify-content: center; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .01em;
+  background: rgba(242,189,87,.1); color: var(--gold-1); border-left: 1px solid rgba(242,189,87,.25);
 }
+.row.wait .score, .row.dns .score { font-size: .42em; font-weight: 600; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; background: transparent; }
+.row.wait .place, .row.dns .place { background: #1a1712; color: var(--muted); }
+.row.wait .name, .row.dns .name { color: #bdb4a4; }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-    line-height: 1.45;
-}
+.row.p1 { background: var(--gold-grad); color: #1a1205; border-bottom-color: rgba(0,0,0,.25); }
+.row.p1 .place { background: #1a1205; color: var(--gold-2); }
+.row.p1 .club { color: rgba(26,18,5,.72); }
+.row.p1 .score { background: rgba(26,18,5,.14); color: #1a1205; border-left-color: rgba(26,18,5,.25); font-weight: 900; }
+.row.p2 .place { background: var(--silver); color: #1d1f23; }
+.row.p3 .place { background: var(--bronze); color: #24140a; }
 
-col.score-col {
-    width: calc(var(--fs) * 6 + 20px);
+.row.fresh::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  box-shadow: inset 0 0 0 3px var(--gold-1); background: rgba(255,230,168,.12);
+  animation: fresh 3.5s ease-out forwards;
 }
+@keyframes fresh { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 
-th, td {
-    border: 1px solid #dce2e9;
-    padding: var(--pad) 10px;
-    text-align: center;
-    font-size: var(--fs);
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.empty-msg { margin: auto; text-align: center; color: var(--muted); font-size: 26px; font-weight: 600; letter-spacing: .06em; }
+.empty-msg b { display: block; color: var(--gold-2); font-size: 34px; margin-bottom: 10px; }
+
+/* ---------- settings panel ---------- */
+#gear {
+  position: fixed; right: 14px; bottom: 14px; z-index: 20;
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(242,189,87,.35);
+  background: rgba(10,9,7,.8); color: var(--gold-2); font-size: 22px; cursor: pointer;
+  opacity: 0; transition: opacity .4s;
 }
-
-th {
-    background: #e6ecf5;
-    font-size: calc(var(--fs) * 0.95);
-    font-weight: 700;
-}
-
-tbody tr:nth-child(even) td {
-    background: #f8fafc;
-}
-
-.gold td {
-    background: #ffe680 !important;
-    font-weight: 900 !important;
-}
-
-.message {
-    text-align: center;
-    color: #555;
-    font-size: 20px;
-}
-
-/* ---------- панель настроек ---------- */
+body.pointer #gear, #gear:focus { opacity: 1; }
 #panel {
-    position: fixed;
-    left: 50%;
-    bottom: 14px;
-    transform: translateX(-50%);
-    z-index: 20;
-    width: min(1100px, calc(100vw - 28px));
-    box-sizing: border-box;
-    background: rgba(20, 28, 40, 0.94);
-    color: #fff;
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.4);
-    padding: 12px 16px;
-    font-size: 15px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  position: fixed; right: 14px; bottom: 68px; z-index: 21; width: 340px; max-height: calc(100% - 90px); overflow: auto;
+  background: #120f0b; border: 1px solid rgba(242,189,87,.35); border-radius: 16px; padding: 16px 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6); font-size: 14px; display: none;
 }
-#panel.hidden { display: none; }
-
-#panel .row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+#panel.open { display: block; }
+#panel h3 { margin: 0 0 10px; color: var(--gold-2); font-size: 15px; letter-spacing: .14em; text-transform: uppercase; }
+#panel label { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 9px 0; color: #ddd4c4; }
+#panel select, #panel input[type=number] {
+  background: #1d1913; color: #fff; border: 1px solid rgba(242,189,87,.3); border-radius: 8px; padding: 6px 8px; font: inherit; width: 150px;
 }
+#panel .row-btns { display: flex; gap: 6px; align-items: center; }
+#panel button.small { background: #1d1913; color: var(--gold-2); border: 1px solid rgba(242,189,87,.35); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; }
+#panel .hint { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 4px 0 8px; }
+#panel .links a { display: inline-block; margin: 3px 6px 3px 0; color: var(--gold-1); font-size: 13px; }
+#panel hr { border: 0; border-top: 1px solid rgba(242,189,87,.18); margin: 12px 0; }
+.demo-badge { position: fixed; left: 14px; bottom: 12px; z-index: 5; font-size: 13px; letter-spacing: .2em; color: var(--muted); text-transform: uppercase; }
 
-#panel .label {
-    width: 150px;
-    flex: none;
-    font-weight: 600;
-    color: #b9c6d8;
-}
-
-#panel button {
-    font: inherit;
-    font-weight: 600;
-    padding: 7px 12px;
-    border: 1px solid #47566b;
-    border-radius: 6px;
-    background: #2a3648;
-    color: #fff;
-    cursor: pointer;
-}
-#panel button:hover { background: #35445a; }
-#panel button.active {
-    background: #007bff;
-    border-color: #007bff;
-}
-#panel button.square {
-    width: 38px;
-    padding: 7px 0;
-    font-size: 18px;
-    line-height: 1;
-}
-
-#panel input[type=range] {
-    flex: 1 1 200px;
-    min-width: 120px;
-    accent-color: #4da3ff;
-}
-
-#panel input[type=number] {
-    font: inherit;
-    font-weight: 700;
-    width: 70px;
-    padding: 6px 8px;
-    border: 1px solid #47566b;
-    border-radius: 6px;
-    background: #fff;
-    color: #111;
-}
-
-#panel .unit { color: #b9c6d8; }
-#panel .spacer { flex: 1; }
-
-#fitStatus { font-weight: 700; }
-#fitStatus.ok  { color: #6ee7a0; }
-#fitStatus.bad { color: #ff8a8a; }
-#pageStatus, #screenInfo { color: #b9c6d8; font-variant-numeric: tabular-nums; }
-#panel .hint { color: #8494aa; font-size: 13px; }
-
-@media (max-width: 700px) {
-    header { padding: 0 12px; }
-    .header-title h1 { font-size: 18px; }
-    .header-title img { height: 56px; }
-    #panel .label { width: 100%; }
+/* ---------- phones & small screens ---------- */
+@media (max-width: 899px) {
+  :root { --fs: 19px; --head-h: auto; }
+  body { overflow: auto; }
+  .bg svg { opacity: .45; }
+  header { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 14px 12px; height: auto; }
+  .brand { gap: 10px; }
+  .brand img { height: 52px; }
+  .wordmark .artvin { font-size: 30px; }
+  .wordmark .cup { font-size: 34px; margin-left: 6px; }
+  .memorial { font-size: 9.5px; letter-spacing: .14em; margin-left: auto; padding-left: 10px; }
+  .stream { text-align: left; }
+  .stream select { font-size: 19px; text-align: left; text-align-last: left; width: 100%; }
+  .rot { font-size: 12px; margin-top: 4px; }
+  nav.apps { position: sticky; top: 0; z-index: 5; padding: 10px 14px; overflow-x: auto; scrollbar-width: none; background: rgba(7,6,5,.92); backdrop-filter: blur(6px); }
+  nav.apps::-webkit-scrollbar { display: none; }
+  nav.apps button { flex: 0 0 auto; font-size: 13px; letter-spacing: .08em; padding: 9px 14px; }
+  nav.apps button.auto { display: inline-block; }
+  main { height: auto; padding: 6px 12px 80px; }
+  .app-head { padding: 6px 2px 10px; }
+  .app-head h2 { font-size: 26px; }
+  .app-head .progress { display: none; }
+  .tbl { min-height: auto; }
+  .table { overflow: visible; }
+  .thead, .row { grid-template-columns: calc(var(--fs) * 2) minmax(0, 1fr) calc(var(--fs) * 4.3); }
+  .thead { font-size: 10px; }
+  .thead .c-club { display: none; }
+  .row { grid-template-areas: "p n s" "p c s"; line-height: 1.3; }
+  .row .place { grid-area: p; grid-row: 1 / 3; }
+  .row .name { grid-area: n; padding-top: .45em; white-space: normal; }
+  .row .name span { white-space: normal; }
+  .row .club { grid-area: c; font-size: .62em; padding: 0 .4em .5em .65em; }
+  .row .score { grid-area: s; grid-row: 1 / 3; font-size: 1.05em; }
+  .row.wait .score, .row.dns .score { font-size: .58em; }
+  .demo-badge { display: none; }
+  #gear { opacity: .8; }
+  #panel { left: 10px; right: 10px; width: auto; }
 }
 </style>
 </head>
-
 <body>
-<header>
-    <div class="header-title">
-        <h1>ArtVin Cup</h1>
-        <img src="../ArtVinCup.jpg" alt="Логотип"
-             onerror="this.onerror=null;this.src='https://miner229.github.io/table-site/ArtVinCup.jpg';">
-    </div>
-    <div class="header-controls">
-        <select id="streamSelect" class="stream-select">
-            <option value="demo">Демо-данные</option>
-            <option value="1">поток 1</option>
-            <option value="2">поток 2</option>
-            <option value="3">поток 3</option>
-            <option value="4">поток 4</option>
-            <option value="5">поток 5</option>
-            <option value="6">поток 6</option>
-            <option value="7">поток 7</option>
-        </select>
-        <button id="gear" class="gear" title="Показать / скрыть настройки (H)">⚙</button>
-    </div>
-</header>
-
-<main id="tables"></main>
-
-<div id="panel">
-    <div class="row">
-        <span class="label">Вариант экрана</span>
-        <button data-mode="one">1 таблица</button>
-        <button data-mode="two">2 таблицы</button>
-        <button data-mode="split">1 таблица в 2 колонки</button>
-        <span class="spacer"></span>
-        <button id="hideBtn">Скрыть панель (H)</button>
-    </div>
-
-    <div class="row">
-        <span class="label">Размер шрифта</span>
-        <button class="square" id="fsMinus">−</button>
-        <input type="range" id="fsRange" min="12" max="300" step="1">
-        <button class="square" id="fsPlus">+</button>
-        <input type="number" id="fsNum" min="12" max="300" step="1">
-        <span class="unit">px</span>
-        <button id="autoFit" title="Самый крупный шрифт, при котором все таблицы потока помещаются по высоте">Макс. шрифт</button>
-    </div>
-
-    <div class="row">
-        <span class="label">Высота строк</span>
-        <input type="range" id="padRange" min="0" max="60" step="1">
-        <input type="number" id="padNum" min="0" max="60" step="1">
-        <span class="unit">px</span>
-    </div>
-
-    <div class="row">
-        <span class="label">Смена каждые</span>
-        <input type="number" id="intervalNum" min="3" max="600" step="1">
-        <span class="unit">сек</span>
-        <button id="nextBtn">Следующая ▶</button>
-        <span id="pageStatus"></span>
-        <span class="spacer"></span>
-        <span id="fitStatus"></span>
-    </div>
-
-    <div class="row hint">
-        <span id="screenInfo"></span>
-        <span class="spacer"></span>
-        <span>Клавиши: ↑ ↓ шрифт · 1 2 3 вариант · пробел следующая · H панель</span>
-    </div>
+<div class="bg" aria-hidden="true">
+  <svg viewBox="0 0 1600 900" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="#7d5418" stop-opacity="0"/><stop offset=".45" stop-color="#f5c766"/><stop offset="1" stop-color="#7d5418" stop-opacity="0"/></linearGradient>
+      <filter id="blur"><feGaussianBlur stdDeviation="3"/></filter>
+    </defs>
+    <path d="M-50 760 C 400 640, 900 980, 1650 610" stroke="url(#g1)" stroke-width="5" fill="none" filter="url(#blur)"/>
+    <path d="M-50 800 C 500 690, 1000 1000, 1650 680" stroke="url(#g1)" stroke-width="1.5" fill="none"/>
+    <path d="M-50 120 C 300 20, 700 260, 1650 60" stroke="url(#g1)" stroke-width="1.2" fill="none" opacity=".55"/>
+    <path d="M900 920 C 1200 700, 1400 760, 1650 420" stroke="url(#g1)" stroke-width="3" fill="none" filter="url(#blur)" opacity=".8"/>
+  </svg>
 </div>
 
+<header>
+  <div class="brand">
+    <img src="logo-emblem.png" alt="ArtVin" onerror="this.style.display='none'" />
+    <div class="wordmark"><span class="artvin">ARTVIN</span><span class="cup">Cup</span></div>
+    <div class="memorial">памяти<b>А.&nbsp;Г.&nbsp;Калиша</b></div>
+  </div>
+  <div class="stream">
+    <select id="streamSel" aria-label="Поток"></select>
+    <div class="rot" id="rotInfo"></div>
+  </div>
+</header>
+
+<nav class="apps" id="appsNav"></nav>
+
+<main>
+  <div class="app-head">
+    <h2 id="appTitle"></h2>
+    <span class="page" id="pageInfo"></span>
+    <div class="progress"><i id="prog"></i></div>
+  </div>
+  <div class="tbl">
+    <div class="thead"><span>М</span><span class="c-name">Гимнаст</span><span class="c-club">Клуб / регион</span><span>Оценка</span></div>
+    <div class="table" id="table"></div>
+  </div>
+</main>
+
+<div class="demo-badge" id="demoBadge" hidden>демо-данные</div>
+<button id="gear" title="Настройки (S)">⚙</button>
+<aside id="panel">
+  <h3>Настройки экрана</h3>
+  <label>Данные
+    <select id="pSrc"><option value="sheet">Google-таблица</option><option value="demo">Демо</option></select>
+  </label>
+  <label>Режим ротации
+    <select id="pMode">
+      <option value="">Как в таблице</option>
+      <option value="manual">Ручная</option>
+      <option value="auto">Авто (по оценкам)</option>
+      <option value="time">По времени</option>
+    </select>
+  </label>
+  <label>Ротация (ручная)
+    <span class="row-btns"><button class="small" id="rotMinus">−</button><b id="rotVal">1</b><button class="small" id="rotPlus">+</button></span>
+  </label>
+  <div class="hint" id="rotHint"></div>
+  <hr>
+  <label>Размер шрифта, px <input type="number" id="pFs" min="16" max="120" step="1" /></label>
+  <label>Секунд на экран <input type="number" id="pSec" min="4" max="120" step="1" /></label>
+  <label>Пауза перед сменой ротации, сек <input type="number" id="pHold" min="0" max="600" step="5" /></label>
+  <div class="hint">Пауза — только для авто-режима: после последней оценки табло ещё показывает старую ротацию, чтобы зрители увидели результат.</div>
+  <div id="demoBox">
+    <hr>
+    <label>Симуляция судей <input type="checkbox" id="pSim" /></label>
+    <div class="row-btns"><button class="small" id="demoReset">Сбросить демо</button></div>
+    <div class="hint">Ссылки судей (демо, открываются в новой вкладке — оценки сразу появляются здесь):</div>
+    <div class="links" id="demoLinks"></div>
+  </div>
+  <hr>
+  <div class="hint">S — показать/скрыть панель. Ссылка для экрана: <span id="tvLink"></span></div>
+</aside>
+
+<script src="core.js"></script>
 <script>
-const SHEET_ID = "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w";
+const A = ArtVin;
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const STORE = "artvin-display-v2";
 
-const STREAMS = {
-  1: { sheet: "поток 1", ranges: ["A2:B9","D2:E13","G2:H14","A16:B28","D16:E27","G16:H28"] },
-  2: { sheet: "поток 2", ranges: ["A3:B16","D3:E15","G3:H14","A18:B29","D17:E26","G17:H26"] },
-  3: { sheet: "поток 3", ranges: ["A2:B14","D2:E13","A16:B28","D16:E28"] },
-  4: { sheet: "поток 4", ranges: ["A3:B15","D3:E16","G3:H14","A18:B31","D18:E31","G18:H31","A33:B44"] },
-  5: { sheet: "поток 5", ranges: ["A3:B14","D3:E13","G3:H14","A17:B27","D17:E27"] },
-  6: { sheet: "поток 6", ranges: ["A2:B8","D2:E8","G2:H8"] },
-  7: { sheet: "поток 7", ranges: ["A2:B13","D2:E14","A16:B27","D16:E26"] }
-};
+/* ---------- state ---------- */
+const saved = (() => { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } })();
+const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, sec: 12, hold: 60, sim: true }, saved);
+if (params.get("src")) state.src = params.get("src") === "demo" ? "demo" : "sheet";
+if (params.get("demo")) state.src = "demo";
+if (params.get("stream")) state.stream = params.get("stream");
+if (params.get("rot")) state.mode = { manual: "manual", auto: "auto", time: "time" }[params.get("rot")] || "";
+if (params.get("fs")) state.fs = +params.get("fs") || state.fs;
+if (params.get("sec")) state.sec = +params.get("sec") || state.sec;
+function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
 
-const REFRESH_MS = 21000;
-const FS_MIN = 12, FS_MAX = 300;
-const STORAGE_KEY = "artvin-screen-test";
+let settings = [];        // streams from «Настройки»
+let current = null;       // settings row of the shown stream
+let stream = null;        // parsed stream tab
+let rotInfo = null;       // { rotation, mode, total }
+const shownRot = {};      // per tab: rotation actually displayed (with hold)
+const pending = {};       // per tab: { r, since }
+let steps = [];           // [{ app, page, pages }]
+let stepIdx = 0;
+let pinnedApp = null;     // phone: apparatus chosen by tap (null = auto)
+let timer = null, refreshTimer = null, simTimer = null;
+const lastScores = {};    // "tab|app|idx" -> raw
+let lastKey = "";
 
-const container   = document.getElementById("tables");
-const select      = document.getElementById("streamSelect");
-const panel       = document.getElementById("panel");
-const fsRange     = document.getElementById("fsRange");
-const fsNum       = document.getElementById("fsNum");
-const padRange    = document.getElementById("padRange");
-const padNum      = document.getElementById("padNum");
-const intervalNum = document.getElementById("intervalNum");
-const pageStatus  = document.getElementById("pageStatus");
-const fitStatus   = document.getElementById("fitStatus");
-const screenInfo  = document.getElementById("screenInfo");
-const modeButtons = [...document.querySelectorAll("[data-mode]")];
+const isPhone = () => matchMedia("(max-width: 899px)").matches;
 
-/* ---------- настройки ---------- */
-const state = {
-  mode: "one",        // one | two | split
-  fs: 28,
-  pad: 8,
-  interval: 20,
-  stream: "demo",
-  panelHidden: false
-};
-
-try {
-  Object.assign(state, JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
-} catch (e) {}
-
-function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
-}
-
-function clamp(v, min, max, fallback) {
-  v = Number(v);
-  if (!Number.isFinite(v)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(v)));
-}
-
-/* ---------- данные ---------- */
-let allTables      = [];
-let pageIndex      = 0;
-let nextSwitchAt   = 0;
-let refreshTimer   = null;
-let loadGeneration = 0;
-let isLoading      = false;
-
-function parseCSV(text) {
-  return text
-    .trim()
-    .split(/\r?\n/)
-    .map(line =>
-      line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-          .map(v => v.replace(/^"+|"+$/g, "").trim())
-    );
-}
-
-function buildCsvUrl(sheet, range) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${
-    encodeURIComponent(sheet)
-  }&range=${range}&cacheBust=${Date.now()}`;
-}
-
-function parseScore(val) {
-  if (!val) return NaN;
-  const num = Number(val.replace(",", ".").trim());
-  return Number.isFinite(num) ? num : NaN;
-}
-
-async function loadTable(sheet, range, index) {
+/* ---------- loading ---------- */
+async function refresh() {
   try {
-    const res = await fetch(buildCsvUrl(sheet, range));
-    if (!res.ok) throw new Error("network");
-    const text = await res.text();
-
-    const rows = parseCSV(text).filter(r => r.some(c => c !== ""));
-    if (rows.length < 3) return { index, empty: true };
-
-    const header = rows[1] || [];
-    return {
-      index,
-      apparatus:   rows[0][0] || "Снаряд",
-      nameHeader:  header[0] || "ФИО",
-      scoreHeader: header[1] || "ОЦЕНКА",
-      rows: rows.slice(2).map(r => [r[0] || "", r[1] || ""])
-    };
+    settings = await A.loadSettings(state.src);
+    if (!settings.length) throw new Error("Во вкладке «Настройки» нет потоков");
+    fillStreamSelect();
+    current = pickStream();
+    stream = await A.loadStream(state.src, current);
+    computeRotation();
+    buildSteps();
+    render(false);
   } catch (e) {
-    console.error("loadTable error:", e);
-    return { index, error: true };
+    console.error(e);
+    showMessage("Нет данных", e.message);
   }
 }
 
-function demoTables() {
-  const apparatus = ["Вольные упражнения", "Конь", "Кольца", "Опорный прыжок",
-                     "Брусья", "Перекладина", "Бревно"];
-  const names = [
-    "Иванов Александр", "Петров Максим", "Сидоров Артём", "Кузнецов Михаил",
-    "Смирнов Даниил", "Васильев Кирилл", "Попов Егор", "Соколов Никита",
-    "Михайлов Илья", "Новиков Матвей", "Фёдоров Тимофей", "Морозов Роман",
-    "Волков Владимир", "Алексеев Ярослав", "Лебедев Фёдор", "Семёнов Георгий",
-    "Константинопольский Александр", "Виноградов Лев", "Богданов Марк",
-    "Воробьёв Степан", "Рождественский Святослав", "Зайцев Пётр"
-  ];
-  const counts = [14, 12, 13, 8, 11, 14, 10];
-
-  return counts.map((count, t) => ({
-    index: t + 1,
-    apparatus: apparatus[t],
-    nameHeader: "ФИО",
-    scoreHeader: "ОЦЕНКА",
-    rows: Array.from({ length: count }, (_, i) => {
-      const name  = names[(t * 5 + i * 3) % names.length];
-      const score = (9 + ((t * 7 + i * 13) % 50) / 10).toFixed(2).replace(".", ",");
-      return [name, score];
-    })
-  }));
+function pickStream() {
+  if (state.stream !== "auto") {
+    const s = settings.find(x => x.tab === state.stream || x.title === state.stream);
+    if (s) return s;
+  }
+  return settings.find(x => x.active) || settings[0];
 }
 
-async function fetchStream(stream) {
-  if (stream === "demo") return demoTables();
-  const cfg = STREAMS[stream];
-  if (!cfg) return [];
-  return Promise.all(cfg.ranges.map((range, idx) => loadTable(cfg.sheet, range, idx + 1)));
+function fillStreamSelect() {
+  const sel = $("streamSel");
+  const sig = settings.map(s => s.tab + s.title + s.active).join("|");
+  if (sel.dataset.sig !== sig) {
+    sel.dataset.sig = sig;
+    const active = settings.find(x => x.active);
+    sel.innerHTML = `<option value="auto">● ${A.esc(active ? active.title : "Текущий поток")}</option>` +
+      settings.map(s => `<option value="${A.esc(s.tab)}">${A.esc(s.title)}</option>`).join("");
+  }
+  sel.value = state.stream;
+  if (sel.value !== state.stream) sel.value = "auto";
 }
 
-/* ---------- отрисовка ---------- */
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-  ));
+function computeRotation() {
+  const info = A.currentRotation(stream, current, state.mode || null);
+  const tab = current.tab;
+  const now = Date.now();
+  if (shownRot[tab] == null || info.mode !== "auto" || state.hold <= 0 || info.rotation < shownRot[tab]) {
+    if (shownRot[tab] !== info.rotation) { stepIdx = 0; }
+    shownRot[tab] = info.rotation; delete pending[tab];
+  } else if (info.rotation !== shownRot[tab]) {
+    if (!pending[tab] || pending[tab].r !== info.rotation) pending[tab] = { r: info.rotation, since: now };
+    if (now - pending[tab].since >= state.hold * 1000) {
+      shownRot[tab] = info.rotation; delete pending[tab]; stepIdx = 0;
+    }
+  } else delete pending[tab];
+  rotInfo = Object.assign({}, info, { shown: shownRot[tab] });
 }
 
-function tableHtml(t, rows, maxScore) {
-  let html = `
-    <table>
-      <colgroup><col><col class="score-col"></colgroup>
-      <thead>
-        <tr><th>${esc(t.nameHeader)}</th><th>${esc(t.scoreHeader)}</th></tr>
-      </thead>
-      <tbody>`;
+/* ---------- steps (apparatus × page) ---------- */
+function rowsPerPage() {
+  if (isPhone()) return 1e9;
+  const t = $("table");
+  const probe = document.createElement("div");
+  probe.className = "row";
+  probe.innerHTML = '<span class="place">1</span><span class="name"><span><b>AG</b><i>g</i></span></span><span class="club"><span>x</span></span><span class="score">10,000</span>';
+  t.appendChild(probe);
+  const h = probe.getBoundingClientRect().height;
+  probe.remove();
+  const gap = parseFloat(getComputedStyle(t).rowGap) || 0;
+  return Math.max(3, Math.floor((t.clientHeight + gap) / (h + gap)));
+}
 
-  rows.forEach(r => {
-    const fio   = r[0].trim() || "-";
-    const score = r[1].trim() || "-";
-    const num   = parseScore(score);
-    const isGold = !isNaN(num) && Math.abs(num - maxScore) < 1e-9;
-    html += `
-        <tr class="${isGold ? "gold" : ""}">
-          <td>${esc(fio)}</td>
-          <td>${esc(score)}</td>
-        </tr>`;
+function buildSteps() {
+  const groups = A.groupsAt(stream, rotInfo.shown);
+  const per = rowsPerPage();
+  const cur = steps[stepIdx];
+  steps = [];
+  stream.apps.forEach(app => {
+    const n = groups[app].length;
+    if (!n) return;
+    const pages = Math.ceil(n / per);
+    for (let p = 0; p < pages; p++) steps.push({ app, page: p, pages, per });
   });
-
-  return html + `
-      </tbody>
-    </table>`;
+  if (cur) {
+    const i = steps.findIndex(s => s.app === cur.app && s.page === cur.page);
+    stepIdx = i >= 0 ? i : steps.findIndex(s => s.app === cur.app);
+  }
+  if (stepIdx < 0 || stepIdx >= steps.length) stepIdx = 0;
 }
 
-function boxHtml(t, split) {
-  const title = `<div class="table-title">Таблица ${t.index}</div>`;
+/* ---------- rendering ---------- */
+function render(advanced) {
+  document.documentElement.style.setProperty("--fs", isPhone() ? "" : state.fs + "px");
+  $("demoBadge").hidden = state.src !== "demo";
+  $("demoBox").style.display = state.src === "demo" ? "" : "none";
 
-  if (t.empty) {
-    return `<div class="table-box">${title}
-      <div class="apparatus" style="color:#999;">Нет данных</div></div>`;
-  }
-  if (t.error) {
-    return `<div class="table-box">${title}
-      <div class="apparatus" style="color:#c00;">Ошибка загрузки</div></div>`;
-  }
+  // header
+  const pend = pending[current.tab];
+  $("rotInfo").innerHTML = `Ротация ${rotInfo.shown} из ${rotInfo.total}` +
+    (pend ? `<span class="pending">→ ${pend.r}-я через ${Math.max(0, Math.ceil((state.hold * 1000 - (Date.now() - pend.since)) / 1000))} с</span>` : "");
 
-  let maxScore = -Infinity;
-  t.rows.forEach(r => {
-    const s = parseScore(r[1]);
-    if (!isNaN(s) && s > maxScore) maxScore = s;
-  });
+  const groups = A.groupsAt(stream, rotInfo.shown);
+  let step = steps[stepIdx];
+  if (isPhone() && pinnedApp && groups[pinnedApp]) step = { app: pinnedApp, page: 0, pages: 1, per: 1e9 };
 
-  let body;
-  if (split) {
-    const half = Math.ceil(t.rows.length / 2);
-    body = `
-      <div class="split">
-        <div class="half">${tableHtml(t, t.rows.slice(0, half), maxScore)}</div>
-        <div class="half">${tableHtml(t, t.rows.slice(half), maxScore)}</div>
-      </div>`;
-  } else {
-    body = tableHtml(t, t.rows, maxScore);
+  // apparatus strip
+  const nav = $("appsNav");
+  nav.innerHTML = stream.apps.map(a =>
+    `<button data-app="${a}" class="${step && step.app === a ? "on" : ""} ${groups[a].length ? "" : "empty"}">${A.APPARATUS[a].short}</button>`
+  ).join("") + `<button class="auto ${pinnedApp ? "" : "on"}" data-app="">Авто</button>`;
+  if (isPhone()) {
+    const on = nav.querySelector("button.on:not(.auto)");
+    if (on && on.dataset.app !== lastKey.split("|")[1]) on.scrollIntoView({ inline: "center", block: "nearest" });
   }
 
-  return `<div class="table-box">${title}
-    <div class="apparatus">${esc(t.apparatus)}</div>${body}</div>`;
-}
-
-function pageSize()   { return state.mode === "two" ? 2 : 1; }
-function totalPages() { return Math.ceil(allTables.length / pageSize()); }
-
-function renderPage() {
-  if (isLoading) return;
-
-  if (!allTables.length) {
-    container.innerHTML = "<p class='message'>Нет данных</p>";
-    updateStatus();
+  if (!step) {
+    $("appTitle").textContent = "";
+    $("pageInfo").textContent = "";
+    $("table").innerHTML = `<div class="empty-msg"><b>${A.esc(current.title)}</b>Список участников пуст</div>`;
     return;
   }
 
-  if (pageIndex >= totalPages()) pageIndex = 0;
+  $("appTitle").textContent = A.APPARATUS[step.app].full;
+  $("pageInfo").textContent = step.pages > 1 ? `${step.page + 1} / ${step.pages}` : "";
 
-  const start = pageIndex * pageSize();
-  const slice = allTables.slice(start, start + pageSize());
+  const ranked = A.rankList(groups[step.app], step.app);
+  const slice = ranked.slice(step.page * step.per, (step.page + 1) * step.per);
 
-  container.innerHTML = slice.map(t => boxHtml(t, state.mode === "split")).join("");
-  updateStatus();
-}
-
-/* ---------- проверка «помещается ли» ---------- */
-function measure() {
-  let hiddenRows = 0, cutNames = 0;
-
-  container.querySelectorAll(".table-box").forEach(box => {
-    const limit = box.getBoundingClientRect().bottom + 0.5;
-    box.querySelectorAll("tbody tr").forEach(tr => {
-      if (tr.getBoundingClientRect().bottom > limit) hiddenRows++;
-    });
-    box.querySelectorAll("tbody td:first-child").forEach(td => {
-      if (td.scrollWidth > td.clientWidth) cutNames++;
-    });
+  // detect fresh scores
+  const fresh = new Set();
+  ranked.forEach(it => {
+    const k = `${current.tab}|${step.app}|${it.g.idx}`;
+    const raw = (it.g.scores[step.app] || {}).raw || "";
+    if (lastScores[k] !== undefined && lastScores[k] !== raw && raw !== "") fresh.add(it.g.idx);
+    lastScores[k] = raw;
   });
 
-  return { hiddenRows, cutNames };
-}
+  const key = `${current.tab}|${step.app}|${step.page}|${rotInfo.shown}`;
+  const sameView = key === lastKey;
+  const t = $("table");
+  const before = {};
+  if (sameView) t.querySelectorAll(".row").forEach(el => (before[el.dataset.k] = el.getBoundingClientRect().top));
 
-function updateStatus() {
-  const pages = totalPages();
-  if (!pages) {
-    pageStatus.textContent = "";
-    fitStatus.textContent = "";
+  t.innerHTML = slice.map(it => {
+    const cls = ["row", it.status];
+    if (it.status === "scored" && it.place <= 3) cls.push("p" + it.place);
+    if (fresh.has(it.g.idx)) cls.push("fresh");
+    const place = it.status === "scored" ? it.place : "–";
+    const score = it.status === "scored" ? A.fmtScore(it.score) : it.status === "dns" ? "н/я" : "ожидает";
+    return `<div class="${cls.join(" ")}" data-k="${it.g.idx}">
+      <span class="place">${place}</span>
+      <span class="name"><span>${fmtName(it.g.name)}</span></span>
+      <span class="club"><span>${A.esc(it.g.club)}</span></span>
+      <span class="score">${score}</span>
+    </div>`;
+  }).join("");
+
+  if (sameView) {
+    // FLIP: rows glide to their new place when the ranking changes
+    t.querySelectorAll(".row").forEach(el => {
+      const b = before[el.dataset.k];
+      if (b == null) return;
+      const d = b - el.getBoundingClientRect().top;
+      if (Math.abs(d) < 1) return;
+      el.animate([{ transform: `translateY(${d}px)` }, { transform: "none" }], { duration: 900, easing: "cubic-bezier(.2,.8,.2,1)" });
+    });
   } else {
-    const left = Math.max(0, Math.ceil((nextSwitchAt - Date.now()) / 1000));
-    pageStatus.textContent = `Экран ${pageIndex + 1} из ${pages} · смена через ${left} с`;
-
-    const m = measure();
-    const parts = [];
-    if (m.hiddenRows) parts.push(`не помещается строк: ${m.hiddenRows}`);
-    if (m.cutNames)   parts.push(`обрезано имён: ${m.cutNames}`);
-    fitStatus.textContent = parts.length ? "✗ " + parts.join(" · ") : "✓ Всё помещается";
-    fitStatus.className   = parts.length ? "bad" : "ok";
+    t.classList.remove("fade"); void t.offsetWidth; t.classList.add("fade");
   }
-
-  screenInfo.textContent =
-    `Экран: ${window.innerWidth}×${window.innerHeight} px` +
-    (window.devicePixelRatio !== 1 ? ` (масштаб ${window.devicePixelRatio.toFixed(2)})` : "");
+  if (!sameView || advanced) restartProgress();
+  lastKey = key;
 }
 
-/* Самый крупный шрифт, при котором каждая таблица потока помещается по высоте. */
-function autoFit() {
-  if (!allTables.length || isLoading) return;
-
-  const keep = pageIndex;
-  const fitsAll = fs => {
-    document.documentElement.style.setProperty("--fs", fs + "px");
-    for (let p = 0; p < totalPages(); p++) {
-      pageIndex = p;
-      renderPage();
-      if (measure().hiddenRows) return false;
-    }
-    return true;
-  };
-
-  let lo = FS_MIN, hi = FS_MAX, best = FS_MIN;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (fitsAll(mid)) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
-  }
-
-  pageIndex = keep;
-  state.fs = best;
-  applySettings();
+// Olympic convention: SURNAME Name
+function fmtName(n) {
+  const parts = String(n).trim().split(/\s+/);
+  const sur = parts.shift() || "";
+  return `<b>${A.esc(sur.toLocaleUpperCase("ru-RU"))}</b> <i>${A.esc(parts.join(" "))}</i>`;
 }
 
-/* ---------- смена экранов ---------- */
-function resetTimer() {
-  nextSwitchAt = Date.now() + state.interval * 1000;
+function restartProgress() {
+  const p = $("prog");
+  p.classList.remove("run"); void p.offsetWidth;
+  if (steps.length > 1 && !isPhone()) { p.style.animationDuration = state.sec + "s"; p.classList.add("run"); }
 }
 
-function nextPage() {
-  if (isLoading || !allTables.length) return;
-  pageIndex = (pageIndex + 1) % totalPages();
-  resetTimer();
-  renderPage();
+function showMessage(title, text) {
+  $("appTitle").textContent = "";
+  $("table").innerHTML = `<div class="empty-msg"><b>${A.esc(title)}</b>${A.esc(text || "")}</div>`;
 }
 
-setInterval(() => {
-  if (isLoading || !allTables.length) return;
-  if (Date.now() >= nextSwitchAt) nextPage();
-  else updateStatus();
-}, 250);
-
-async function renderStream(stream) {
-  state.stream = stream;
-  saveState();
-
-  const gen = ++loadGeneration;
-  isLoading = true;
+/* ---------- cycling ---------- */
+function startCycle() {
+  clearInterval(timer);
+  timer = setInterval(() => {
+    if (!stream || steps.length < 2) return;
+    if (isPhone() && pinnedApp) return;
+    stepIdx = (stepIdx + 1) % steps.length;
+    render(true);
+  }, state.sec * 1000);
+}
+function startRefresh() {
   clearInterval(refreshTimer);
-  container.innerHTML = "<p class='message'>Загрузка...</p>";
-
-  const tables = await fetchStream(stream);
-  if (gen !== loadGeneration) return;
-
-  allTables = tables;
-  pageIndex = 0;
-  isLoading = false;
-  resetTimer();
-  renderPage();
-
-  if (stream !== "demo") {
-    // как на основном сайте: тихо обновляем данные, они появятся при следующей смене
-    refreshTimer = setInterval(async () => {
-      if (isLoading) return;
-      const g = loadGeneration;
-      const fresh = await fetchStream(stream);
-      if (g === loadGeneration) allTables = fresh;
-    }, REFRESH_MS);
-  }
+  refreshTimer = setInterval(refresh, state.src === "demo" ? 2000 : 10000);
 }
 
-/* ---------- панель ---------- */
-function applySettings() {
-  state.fs       = clamp(state.fs, FS_MIN, FS_MAX, 28);
-  state.pad      = clamp(state.pad, 0, 60, 8);
-  state.interval = clamp(state.interval, 3, 600, 20);
-  if (!["one", "two", "split"].includes(state.mode)) state.mode = "one";
-
-  const root = document.documentElement.style;
-  root.setProperty("--fs", state.fs + "px");
-  root.setProperty("--pad", state.pad + "px");
-  root.setProperty("--cols", state.mode === "two" ? 2 : 1);
-
-  fsRange.value = fsNum.value = state.fs;
-  padRange.value = padNum.value = state.pad;
-  if (document.activeElement !== intervalNum) intervalNum.value = state.interval;
-  modeButtons.forEach(b => b.classList.toggle("active", b.dataset.mode === state.mode));
-  panel.classList.toggle("hidden", !!state.panelHidden);
-
-  saveState();
-  renderPage();
+/* ---------- demo judges simulation ---------- */
+function simulate() {
+  if (state.src !== "demo" || !state.sim || !current) return;
+  const d = A.demoInit();
+  const st = d.settings.slice(1).find(r => r[1] === current.tab);
+  const s = A.parseStream(d.tabs[current.tab], current.gender, 1);
+  const info = A.currentRotation(s, A.parseSettings([d.settings[0], st])[0], state.mode || null);
+  const groups = A.groupsAt(s, info.rotation);
+  const waiting = [];
+  s.apps.forEach(a => groups[a].forEach(g => { if (!A.hasScore(g, a)) waiting.push([g, a]); }));
+  if (!waiting.length) return;
+  const [g, a] = waiting[Math.floor(Math.random() * waiting.length)];
+  d.tabs[current.tab][g.row - 1][s.appCols[a]] = Math.random() < 0.04 ? "0" : A.randomScore();
+  A.demoSave(d);
+  refresh();
 }
 
-function setMode(mode) {
-  if (state.mode === mode) return;
-  // остаёмся на той же таблице, что была на экране
-  const firstTable = pageIndex * pageSize();
-  state.mode = mode;
-  pageIndex = Math.floor(firstTable / pageSize());
-  resetTimer();
-  applySettings();
+/* ---------- panel ---------- */
+function syncPanel() {
+  $("pSrc").value = state.src;
+  $("pMode").value = state.mode;
+  $("pFs").value = state.fs;
+  $("pSec").value = state.sec;
+  $("pHold").value = state.hold;
+  $("pSim").checked = state.sim;
+  const man = current ? current.rotation : 1;
+  $("rotVal").textContent = man;
+  const editable = state.src === "demo";
+  $("rotMinus").disabled = $("rotPlus").disabled = !editable;
+  $("rotHint").textContent = editable
+    ? "В демо можно менять здесь. В живой таблице — ячейка «Ротация» во вкладке «Настройки»."
+    : "Меняется в Google-таблице: вкладка «Настройки», колонка «Ротация».";
+  const base = location.origin + location.pathname;
+  const tvParams = new URLSearchParams();
+  if (state.src === "demo") tvParams.set("src", "demo");
+  if (state.stream !== "auto") tvParams.set("stream", state.stream);
+  if (state.mode) tvParams.set("rot", state.mode);
+  if (state.fs !== 42) tvParams.set("fs", state.fs);
+  const q = tvParams.toString();
+  $("tvLink").textContent = base + (q ? "?" + q : "");
+  const jb = location.pathname.replace(/[^/]*$/, "") + "judge.html";
+  $("demoLinks").innerHTML = (current ? A.ORDER[current.gender] : A.ORDER.M).map(a =>
+    `<a href="${jb}?demo=1&key=demo-${current ? current.gender : "M"}-${a}" target="_blank">${A.APPARATUS[a].short}</a>`).join("");
 }
-
-function setFs(v)  { state.fs = v; applySettings(); }
-function setPad(v) { state.pad = v; applySettings(); }
-
-function togglePanel() {
-  state.panelHidden = !state.panelHidden;
-  applySettings();
+function setState(patch, reload) {
+  Object.assign(state, patch); save(); syncPanel();
+  if (reload) { lastKey = ""; refresh().then(syncPanel); startRefresh(); }
+  else { if (stream) { computeRotation(); buildSteps(); render(false); } }
 }
-
-modeButtons.forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
-
-fsRange.addEventListener("input",  () => setFs(fsRange.value));
-fsNum.addEventListener("change",   () => setFs(fsNum.value));
-document.getElementById("fsMinus").addEventListener("click", () => setFs(state.fs - 1));
-document.getElementById("fsPlus").addEventListener("click",  () => setFs(state.fs + 1));
-document.getElementById("autoFit").addEventListener("click", autoFit);
-
-padRange.addEventListener("input", () => setPad(padRange.value));
-padNum.addEventListener("change",  () => setPad(padNum.value));
-
-intervalNum.addEventListener("change", () => {
-  state.interval = intervalNum.value;
-  intervalNum.blur();
-  applySettings();
-  resetTimer();
-  updateStatus();
-});
-
-document.getElementById("nextBtn").addEventListener("click", nextPage);
-document.getElementById("hideBtn").addEventListener("click", togglePanel);
-document.getElementById("gear").addEventListener("click", togglePanel);
-
-select.addEventListener("change", () => renderStream(select.value));
-window.addEventListener("resize", updateStatus);
-
+$("gear").onclick = () => { $("panel").classList.toggle("open"); syncPanel(); };
 document.addEventListener("keydown", e => {
-  if (e.ctrlKey || e.altKey || e.metaKey) return;
-  const tag = e.target.tagName;
-  if (tag === "INPUT" || tag === "SELECT") return;
-
-  const key = e.key.toLowerCase();
-  if (key === "arrowup" || key === "+" || key === "=") setFs(state.fs + 1);
-  else if (key === "arrowdown" || key === "-")        setFs(state.fs - 1);
-  else if (key === "1") setMode("one");
-  else if (key === "2") setMode("two");
-  else if (key === "3") setMode("split");
-  else if (key === " ") nextPage();
-  else if (key === "h" || key === "р") togglePanel();
-  else return;
-  e.preventDefault();
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.key === "s" || e.key === "S" || e.key === "ы" || e.key === "Ы") { $("panel").classList.toggle("open"); syncPanel(); }
+  if (e.key === "ArrowRight" && steps.length) { stepIdx = (stepIdx + 1) % steps.length; render(true); startCycle(); }
+  if (e.key === "ArrowLeft" && steps.length) { stepIdx = (stepIdx - 1 + steps.length) % steps.length; render(true); startCycle(); }
 });
+let pointerT;
+document.addEventListener("mousemove", () => {
+  document.body.classList.add("pointer"); clearTimeout(pointerT);
+  pointerT = setTimeout(() => document.body.classList.remove("pointer"), 3000);
+});
+$("pSrc").onchange = e => setState({ src: e.target.value, stream: "auto" }, true);
+$("pMode").onchange = e => setState({ mode: e.target.value }, true);
+$("pFs").onchange = e => setState({ fs: Math.max(16, Math.min(120, +e.target.value || 42)) });
+$("pSec").onchange = e => { setState({ sec: Math.max(4, +e.target.value || 12) }); startCycle(); };
+$("pHold").onchange = e => setState({ hold: Math.max(0, +e.target.value || 0) }, true);
+$("pSim").onchange = e => setState({ sim: e.target.checked });
+$("demoReset").onclick = () => { A.demoInit(true); Object.keys(shownRot).forEach(k => delete shownRot[k]); setState({}, true); };
+function bumpRot(d) {
+  if (state.src !== "demo" || !current) return;
+  const data = A.demoInit();
+  const r = data.settings.find(x => x[1] === current.tab);
+  const n = A.ORDER[current.gender].length;
+  r[3] = String(Math.max(1, Math.min(n, (parseInt(r[3], 10) || 1) + d)));
+  A.demoSave(data); refresh().then(syncPanel);
+}
+$("rotMinus").onclick = () => bumpRot(-1);
+$("rotPlus").onclick = () => bumpRot(1);
 
-/* ---------- запуск ---------- */
-if (state.stream !== "demo" && !STREAMS[state.stream]) state.stream = "demo";
-select.value = state.stream;
-applySettings();
-renderStream(state.stream);
+$("streamSel").onchange = e => { pinnedApp = null; stepIdx = 0; setState({ stream: e.target.value }, true); };
+$("appsNav").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const app = b.dataset.app || null;
+  if (isPhone()) { pinnedApp = app; render(true); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  const i = steps.findIndex(s => s.app === app);
+  if (i >= 0) { stepIdx = i; render(true); startCycle(); }
+};
+window.addEventListener("storage", e => { if (e.key === A.DEMO_KEY && state.src === "demo") refresh(); });
+let resizeT;
+window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (stream) { lastKey = ""; buildSteps(); render(false); } }, 200); });
+
+/* ---------- start ---------- */
+(async () => {
+  if (state.src === "demo") A.demoInit();
+  await refresh();
+  syncPanel();
+  startCycle();
+  startRefresh();
+  simTimer = setInterval(simulate, 3500);
+  // keep the "переход через N с" countdown ticking
+  setInterval(() => { if (stream && pending[current.tab]) { computeRotation(); if (!pending[current.tab]) buildSteps(); render(false); } }, 1000);
+})();
 </script>
-
 </body>
 </html>
