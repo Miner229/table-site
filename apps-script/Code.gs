@@ -1,0 +1,206 @@
+/**
+ * ArtVin Cup — приём оценок от судей.
+ *
+ * Вставить в Google-таблицу: Расширения → Apps Script → заменить содержимое Code.gs этим файлом.
+ * Затем: Начать развертывание → Новое развертывание → тип «Веб-приложение»,
+ *        «Запуск от имени: Я», «Доступ: Все» → Развернуть.
+ * После этого в таблице появится меню «ArtVin Cup» → «Ссылки судей».
+ *
+ * Защита: каждая ссылка судьи содержит ключ, привязанный к ОДНОМУ снаряду (и полу).
+ * Снаряд определяется только по ключу на сервере — страница судьи не может выбрать другой снаряд.
+ * Ключи хранятся в свойствах скрипта, а не в таблице (таблица открыта для просмотра).
+ */
+
+var JUDGE_PAGE = "https://miner229.github.io/table-site/demo/judge.html";
+var SETTINGS_TAB = "Настройки";
+var LOG_TAB = "Журнал";
+
+var APPS = {
+  floor:  "Вольные упражнения", pommel: "Конь-махи", rings: "Кольца", vault: "Опорный прыжок",
+  pbars:  "Параллельные брусья", hbar: "Перекладина", ubars: "Брусья разной высоты", beam: "Бревно"
+};
+var ORDER = { M: ["floor", "pommel", "rings", "vault", "pbars", "hbar"], F: ["vault", "ubars", "beam", "floor"] };
+
+/* ---------------- helpers ---------------- */
+function norm_(s) { return String(s == null ? "" : s).toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim(); }
+function gender_(s) { return /^(ж|д|f|w)/.test(norm_(s)) ? "F" : "M"; }
+function appFromText_(text, g) {
+  var t = norm_(text);
+  if (!t || t.length > 40) return null;
+  if (/вольн/.test(t)) return "floor";
+  if (/конь|махи/.test(t)) return "pommel";
+  if (/кольц/.test(t)) return "rings";
+  if (/прыж/.test(t)) return "vault";
+  if (/брус/.test(t)) return g === "F" ? "ubars" : "pbars";
+  if (/перекл/.test(t)) return "hbar";
+  if (/бревн/.test(t)) return "beam";
+  return null;
+}
+function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+function sheet_(name) {
+  var sh = SpreadsheetApp.getActive().getSheetByName(name);
+  if (!sh) throw new Error("Нет вкладки «" + name + "»");
+  return sh;
+}
+function keys_() {
+  var raw = PropertiesService.getScriptProperties().getProperty("JUDGE_KEYS");
+  return raw ? JSON.parse(raw) : {};
+}
+function judge_(key) {
+  var v = keys_()[String(key || "")];
+  if (!v) throw new Error("Ссылка судьи недействительна");
+  var p = v.split(":");
+  return { gender: p[0], app: p[1] };
+}
+function streams_() {
+  var values = sheet_(SETTINGS_TAB).getDataRange().getDisplayValues();
+  var hi = -1;
+  for (var i = 0; i < values.length; i++) if (values[i].some(function (c) { return /лист/.test(norm_(c)); })) { hi = i; break; }
+  if (hi < 0) throw new Error("Во вкладке «Настройки» нет колонки «Лист»");
+  var h = values[hi].map(norm_);
+  var tabCol = h.findIndex(function (c) { return /лист/.test(c); });
+  var gCol = h.findIndex(function (c) { return /^пол/.test(c); });
+  var out = {};
+  values.slice(hi + 1).forEach(function (r) {
+    var tab = String(r[tabCol] || "").trim();
+    if (tab) out[tab] = { gender: gender_(gCol >= 0 ? r[gCol] : "") };
+  });
+  return out;
+}
+function headerIndex_(values) {
+  for (var i = 0; i < values.length; i++)
+    if (values[i].some(function (c) { return /^фио/.test(norm_(c)); })) return i;
+  throw new Error("Во вкладке нет строки заголовков с «ФИО»");
+}
+
+/* ---------------- web app ---------------- */
+function doGet(e) {
+  try {
+    var p = e.parameter || {};
+    if (p.action === "settings") return json_({ ok: true, values: sheet_(SETTINGS_TAB).getDataRange().getDisplayValues() });
+    if (p.action === "tab") {
+      if (!streams_()[p.tab]) throw new Error("Поток не найден в «Настройках»");
+      return json_({ ok: true, values: sheet_(p.tab).getDataRange().getDisplayValues() });
+    }
+    if (p.action === "whoami") { var j = judge_(p.key); return json_({ ok: true, gender: j.gender, app: j.app, name: APPS[j.app] }); }
+    return json_({ ok: true, service: "ArtVin Cup scores" });
+  } catch (err) {
+    return json_({ ok: false, error: String(err.message || err) });
+  }
+}
+
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  try {
+    var b = JSON.parse(e.postData.contents);
+    if (b.action !== "score") throw new Error("Неизвестное действие");
+    var j = judge_(b.key);                      // apparatus comes ONLY from the key
+    var st = streams_()[b.tab];
+    if (!st) throw new Error("Поток не найден в «Настройках»");
+    if (st.gender !== j.gender) throw new Error("Этот поток не для вашего снаряда");
+
+    // value: "" (удалить) or number 0..20 with up to 3 decimals; 0 = «не выступал»
+    var raw = String(b.value == null ? "" : b.value).trim().replace(",", ".");
+    var value = "";
+    if (raw !== "") {
+      if (!/^\d{1,2}(\.\d{1,3})?$/.test(raw)) throw new Error("Неверный формат оценки");
+      value = Number(raw);
+      if (value < 0 || value > 20) throw new Error("Оценка должна быть от 0 до 20");
+    }
+
+    lock.waitLock(15000);
+    var sh = sheet_(b.tab);
+    var values = sh.getDataRange().getDisplayValues();
+    var hi = headerIndex_(values);
+    var head = values[hi];
+    var nameCol = head.findIndex(function (c) { return /^фио/.test(norm_(c)); });
+    var startCol = head.findIndex(function (c) { return /старт/.test(norm_(c)); });
+    var col = -1;
+    for (var c = 0; c < head.length; c++) {
+      if (c === nameCol || c === startCol) continue;
+      if (appFromText_(head[c], st.gender) === j.app) { col = c; break; }
+    }
+    if (col < 0) throw new Error("В потоке нет колонки «" + APPS[j.app] + "»");
+
+    var row = Number(b.row);
+    if (!(row - 1 > hi && row <= values.length)) throw new Error("Неверная строка");
+    if (norm_(values[row - 1][nameCol]) !== norm_(b.name)) throw new Error("Список изменился — обновите страницу");
+
+    var cell = sh.getRange(row, col + 1);
+    var old = cell.getDisplayValue();
+    if (value === "") cell.clearContent(); else cell.setValue(value);
+    SpreadsheetApp.flush();
+    log_([new Date(), APPS[j.app] + (j.gender === "F" ? " (Ж)" : " (М)"), b.tab, row, b.name, old, value === "" ? "удалено" : value]);
+    return json_({ ok: true });
+  } catch (err) {
+    return json_({ ok: false, error: String(err.message || err) });
+  } finally {
+    try { lock.releaseLock(); } catch (x) {}
+  }
+}
+
+function log_(row) {
+  var ss = SpreadsheetApp.getActive();
+  var sh = ss.getSheetByName(LOG_TAB);
+  if (!sh) {
+    sh = ss.insertSheet(LOG_TAB);
+    sh.appendRow(["Время", "Снаряд", "Поток", "Строка", "ФИО", "Было", "Стало"]);
+    sh.setFrozenRows(1);
+  }
+  sh.appendRow(row);
+}
+
+/* ---------------- menu for the organiser ---------------- */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu("ArtVin Cup")
+    .addItem("Ссылки судей", "showJudgeLinks")
+    .addItem("Создать новые ключи (старые ссылки перестанут работать)", "resetKeys")
+    .addSeparator()
+    .addItem("Подготовить вкладку «Настройки»", "setupSettings")
+    .addToUi();
+}
+
+function randomKey_() {
+  var abc = "abcdefghjkmnpqrstuvwxyz23456789", s = "";
+  for (var i = 0; i < 12; i++) s += abc.charAt(Math.floor(Math.random() * abc.length));
+  return s;
+}
+function makeKeys_() {
+  var k = {};
+  ["M", "F"].forEach(function (g) { ORDER[g].forEach(function (a) { k[randomKey_()] = g + ":" + a; }); });
+  PropertiesService.getScriptProperties().setProperty("JUDGE_KEYS", JSON.stringify(k));
+  return k;
+}
+function resetKeys() {
+  var ui = SpreadsheetApp.getUi();
+  if (ui.alert("Создать новые ключи?", "Все старые ссылки судей перестанут работать.", ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  makeKeys_();
+  showJudgeLinks();
+}
+function showJudgeLinks() {
+  var api = ScriptApp.getService().getUrl();
+  if (!api) {
+    SpreadsheetApp.getUi().alert("Сначала разверните скрипт: Начать развертывание → Новое развертывание → Веб-приложение (Запуск от имени: Я, Доступ: Все).");
+    return;
+  }
+  var k = keys_();
+  if (!Object.keys(k).length) k = makeKeys_();
+  var rows = Object.keys(k).map(function (key) {
+    var p = k[key].split(":");
+    return { g: p[0], app: p[1], url: JUDGE_PAGE + "?key=" + key + "&api=" + encodeURIComponent(api) };
+  }).sort(function (a, b) { return a.g === b.g ? ORDER[a.g].indexOf(a.app) - ORDER[b.g].indexOf(b.app) : (a.g === "M" ? -1 : 1); });
+  var html = "<style>body{font-family:Arial;font-size:13px}td{padding:6px;border-bottom:1px solid #eee;vertical-align:top}input{width:100%;font-size:11px}</style>" +
+    "<p>Отправьте каждому судье только его ссылку. Ссылка работает только для своего снаряда.</p><table>" +
+    rows.map(function (r) {
+      return "<tr><td><b>" + (r.g === "M" ? "Мальчики" : "Девочки") + "</b><br>" + APPS[r.app] + "</td><td><input readonly onclick='this.select()' value='" + r.url + "'></td></tr>";
+    }).join("") + "</table>";
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(720).setHeight(560), "Ссылки судей");
+}
+function setupSettings() {
+  var ss = SpreadsheetApp.getActive();
+  if (ss.getSheetByName(SETTINGS_TAB)) { SpreadsheetApp.getUi().alert("Вкладка «Настройки» уже есть."); return; }
+  var sh = ss.insertSheet(SETTINGS_TAB, 0);
+  sh.getRange(1, 1, 1, 7).setValues([["Поток", "Лист", "Пол", "Ротация", "Режим", "Время ротаций", "На экране"]]).setFontWeight("bold");
+  sh.getRange(2, 1, 1, 7).setValues([["Пятница · Поток 1", "Пятница 1", "М", 1, "ручной", "", "да"]]);
+  sh.setFrozenRows(1);
+}

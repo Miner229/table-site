@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#070605" />
+<meta name="robots" content="noindex" />
+<link rel="icon" href="logo-emblem.png" />
+<title>ArtVin Cup — судья</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,500;0,600;0,700;0,800;0,900;1,900&family=Kaushan+Script&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #070605; --card: #15120e; --card-2: #1d1913;
+  --gold-1: #ffe6a8; --gold-2: #f2bd57; --gold-3: #cf902f;
+  --gold-grad: linear-gradient(100deg, #fff0c4 0%, #f5c766 30%, #d99a36 62%, #a86f22 100%);
+  --text: #f7f2e8; --muted: #9d9483; --line: rgba(242,189,87,.18);
+  --ok: #7fd38a; --err: #ff7b6b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; background: radial-gradient(900px 400px at 100% -10%, rgba(217,154,54,.18), transparent 60%), var(--bg);
+  color: var(--text); font-family: "Montserrat", "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 14px 14px 90px; }
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.wordmark { white-space: nowrap; }
+.wordmark .artvin { font-weight: 900; font-style: italic; font-size: 22px; }
+.wordmark .cup { font-family: "Kaushan Script", cursive; font-size: 24px; margin-left: 4px; background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.role { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+
+.app-card { margin: 14px 0 12px; padding: 16px 18px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); }
+.app-card h1 { margin: 0; font-size: 30px; font-weight: 900; font-style: italic; text-transform: uppercase; letter-spacing: .03em;
+  background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lock { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--gold-1);
+  padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(242,189,87,.35); background: rgba(242,189,87,.07); }
+.controls { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+select, .btn {
+  font: 600 15px "Montserrat", sans-serif; color: var(--text); background: var(--card-2);
+  border: 1px solid rgba(242,189,87,.3); border-radius: 10px; padding: 10px 12px;
+}
+select { flex: 1; min-width: 200px; }
+.btn { cursor: pointer; color: var(--gold-2); }
+.btn.on { background: var(--gold-grad); color: #1a1205; border-color: transparent; }
+.rotline { margin-top: 10px; font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+.rotline b { color: var(--gold-2); }
+
+.group-title { margin: 18px 4px 8px; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold-2); font-weight: 700; }
+.g {
+  display: grid; grid-template-columns: 2em minmax(0,1fr) auto; gap: 10px; align-items: center;
+  padding: 10px 10px 10px 8px; margin-bottom: 8px; border-radius: 14px; background: var(--card); border: 1px solid var(--line);
+}
+.g .n { text-align: center; color: var(--muted); font-weight: 800; }
+.g .who b { display: block; font-size: 17px; font-weight: 700; line-height: 1.2; }
+.g .who span { font-size: 12px; color: var(--muted); }
+.g .entry { display: flex; gap: 6px; align-items: center; }
+.g input {
+  width: 92px; font: 800 20px "Montserrat", sans-serif; text-align: center; font-variant-numeric: tabular-nums;
+  color: #fff; background: #0d0b08; border: 1px solid rgba(242,189,87,.35); border-radius: 10px; padding: 9px 6px;
+}
+.g input:focus { outline: 2px solid var(--gold-2); }
+.g button.save { width: 46px; height: 44px; border-radius: 10px; border: 0; background: var(--gold-grad); color: #1a1205; font-size: 20px; font-weight: 900; cursor: pointer; }
+.g button.dns { height: 44px; padding: 0 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,.15); background: transparent; color: var(--muted); font: 700 11px "Montserrat"; cursor: pointer; }
+.g .st { grid-column: 2 / 4; font-size: 12px; min-height: 0; }
+.g .st:empty { display: none; }
+.g.saved { border-color: rgba(127,211,138,.45); }
+.g.saved input { border-color: rgba(127,211,138,.6); }
+.g .st.ok { color: var(--ok); } .g .st.err { color: var(--err); } .g .st.busy { color: var(--gold-1); }
+.empty { text-align: center; color: var(--muted); padding: 30px 10px; }
+.foot { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: rgba(7,6,5,.94); border-top: 1px solid var(--line);
+  font-size: 12px; color: var(--muted); text-align: center; }
+.foot .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: 1px; }
+.foot .dot.bad { background: var(--err); }
+.nokey { margin-top: 30px; padding: 18px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); line-height: 1.55; }
+.nokey a { color: var(--gold-1); margin-right: 10px; display: inline-block; margin-top: 6px; }
+@media (max-width: 420px) {
+  .g { grid-template-columns: 1.6em minmax(0,1fr); }
+  .g .entry { grid-column: 1 / 3; justify-content: flex-end; }
+  .g .st { grid-column: 1 / 3; text-align: right; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="wordmark"><span class="artvin">ARTVIN</span><span class="cup">Cup</span></div>
+    <div class="role" id="role">судья</div>
+  </div>
+  <div id="app"></div>
+</div>
+<div class="foot" id="foot"></div>
+
+<script src="core.js"></script>
+<script>
+const A = ArtVin;
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const KEY = params.get("key") || "";
+const DEMO = params.has("demo") || KEY.startsWith("demo-");
+const SRC = DEMO ? "demo" : "script";
+const UI = "artvin-judge-ui";
+
+let me = null;              // { gender, app }
+let settings = [], current = null, stream = null, info = null;
+let showAll = false;
+let streamChoice = "auto";
+try { const u = JSON.parse(localStorage.getItem(UI)) || {}; showAll = !!u.showAll; streamChoice = u.stream || "auto"; } catch (e) {}
+const saveUI = () => { try { localStorage.setItem(UI, JSON.stringify({ showAll, stream: streamChoice })); } catch (e) {} };
+
+/* ---------- identity (the key decides the apparatus; it cannot be changed on this page) ---------- */
+async function whoami() {
+  if (DEMO) {
+    const m = KEY.match(/^demo-([MF])-(\w+)$/);
+    if (!m || !A.ORDER[m[1]].includes(m[2])) throw new Error("Неверная демо-ссылка");
+    return { gender: m[1], app: m[2] };
+  }
+  const j = await A.scriptGet({ action: "whoami", key: KEY });
+  return { gender: j.gender, app: j.app };
+}
+
+/* ---------- write ---------- */
+async function writeScore(g, value) {
+  if (DEMO) {
+    // same checks as the server: apparatus comes only from the key
+    const d = A.demoInit();
+    const st = settings.find(s => s.tab === current.tab);
+    if (!st || st.gender !== me.gender) throw new Error("Этот поток не для вашего снаряда");
+    const values = d.tabs[current.tab];
+    const parsed = A.parseStream(values, st.gender, 1);
+    const col = parsed.appCols[me.app];
+    if (col == null) throw new Error("В таблице нет колонки вашего снаряда");
+    if (A.norm(values[g.row - 1][parsed.nameCol]) !== A.norm(g.name)) throw new Error("Строка изменилась — обновите");
+    values[g.row - 1][col] = value;
+    A.demoSave(d);
+    return;
+  }
+  await A.scriptPost({ action: "score", key: KEY, tab: current.tab, row: g.row, name: g.name, value });
+}
+
+/* ---------- load ---------- */
+async function load() {
+  try {
+    settings = (await A.loadSettings(SRC)).filter(s => s.gender === me.gender);
+    if (!settings.length) throw new Error("Нет потоков для этого снаряда");
+    current = (streamChoice !== "auto" && settings.find(s => s.tab === streamChoice)) || settings.find(s => s.active) || settings[0];
+    stream = await A.loadStream(SRC, current);
+    info = A.currentRotation(stream, current, null);
+    render();
+    setFoot(true);
+  } catch (e) {
+    console.error(e);
+    setFoot(false, e.message);
+  }
+}
+
+function setFoot(ok, msg) {
+  const t = new Date().toLocaleTimeString("ru-RU");
+  $("foot").innerHTML = ok
+    ? `<span class="dot"></span>Связь есть · обновлено ${t}${DEMO ? " · демо" : ""}`
+    : `<span class="dot bad"></span>${A.esc(msg || "Нет связи")} · ${t}`;
+}
+
+/* ---------- render ---------- */
+let renderedSig = "";
+function render() {
+  const groups = A.groupsAt(stream, info.rotation);
+  const mine = groups[me.app] || [];
+  const order = A.ORDER[me.gender];
+
+  // which group(s) to show
+  let sections;
+  if (showAll) {
+    sections = order.map(start => ({
+      title: "Старт: " + A.APPARATUS[start].short + (A.appAtRotation(start, info.rotation, me.gender) === me.app ? " · сейчас у вас" : ""),
+      list: stream.gymnasts.filter(g => g.start === start),
+    })).filter(s => s.list.length);
+    const loose = stream.gymnasts.filter(g => !g.start);
+    if (loose.length) sections.push({ title: "Без стартового снаряда", list: loose });
+  } else {
+    sections = [{ title: "Сейчас на снаряде", list: mine }];
+  }
+
+  const sig = current.tab + "|" + info.rotation + "|" + showAll + "|" + sections.map(s => s.list.map(g => g.row + g.name).join(",")).join("/");
+  const head = `
+    <div class="app-card">
+      <h1>${A.esc(A.APPARATUS[me.app].full)}</h1>
+      <div class="lock">🔒 Вы можете ставить оценки только на этом снаряде</div>
+      <div class="controls">
+        <select id="streamSel">
+          <option value="auto">● ${A.esc((settings.find(s => s.active) || settings[0]).title)}</option>
+          ${settings.map(s => `<option value="${A.esc(s.tab)}">${A.esc(s.title)}</option>`).join("")}
+        </select>
+        <button class="btn ${showAll ? "on" : ""}" id="allBtn">Весь поток</button>
+      </div>
+      <div class="rotline">Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}</div>
+    </div>`;
+
+  if (sig !== renderedSig) {
+    renderedSig = sig;
+    $("app").innerHTML = head + sections.map(s => `
+      <div class="group-title">${A.esc(s.title)}</div>
+      ${s.list.length ? s.list.map((g, i) => rowHtml(g, i + 1)).join("") : '<div class="empty">На этом снаряде сейчас никого нет</div>'}
+    `).join("");
+    $("streamSel").value = streamChoice;
+    if ($("streamSel").value !== streamChoice) $("streamSel").value = "auto";
+    $("streamSel").onchange = e => { streamChoice = e.target.value; saveUI(); renderedSig = ""; load(); };
+    $("allBtn").onclick = () => { showAll = !showAll; saveUI(); renderedSig = ""; render(); };
+  } else {
+    // refresh values without disturbing what the judge is typing
+    document.querySelectorAll(".g").forEach(el => {
+      const g = stream.gymnasts.find(x => String(x.row) === el.dataset.row);
+      if (!g) return;
+      const inp = el.querySelector("input");
+      const raw = (g.scores[me.app] || {}).raw || "";
+      if (document.activeElement !== inp && !inp.dataset.dirty) inp.value = shown(raw);
+      el.classList.toggle("saved", raw !== "");
+    });
+    document.querySelector(".rotline").innerHTML = `Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}`;
+  }
+}
+
+function shown(raw) {
+  const n = A.parseScore(raw);
+  if (raw === "") return "";
+  return n === 0 ? "н/я" : (n == null ? raw : A.fmtScore(n));
+}
+
+function rowHtml(g, n) {
+  const raw = (g.scores[me.app] || {}).raw || "";
+  return `<div class="g ${raw !== "" ? "saved" : ""}" data-row="${g.row}">
+    <span class="n">${n}</span>
+    <div class="who"><b>${A.esc(g.name)}</b><span>${A.esc([g.year, g.club].filter(Boolean).join(" · "))}</span></div>
+    <div class="entry">
+      <input inputmode="decimal" autocomplete="off" enterkeyhint="next" placeholder="0,000" value="${A.esc(shown(raw))}" aria-label="Оценка ${A.esc(g.name)}" />
+      <button class="save" title="Сохранить">✓</button>
+      <button class="dns" title="Не выступал">Н/Я</button>
+    </div>
+    <div class="st"></div>
+  </div>`;
+}
+
+/* ---------- interactions ---------- */
+function validate(text) {
+  const t = String(text).trim();
+  if (t === "") return { value: "" };
+  if (/^н\/?я$/i.test(t)) return { value: "0" };
+  if (!/^\d{1,2}([.,]\d{1,3})?$/.test(t)) return { error: "Формат: 12,350 (до 3 знаков после запятой)" };
+  const n = A.parseScore(t);
+  if (n < 0 || n > 20) return { error: "Оценка должна быть от 0 до 20" };
+  return { value: n.toFixed(3) };
+}
+
+async function submit(el, forced) {
+  const g = stream.gymnasts.find(x => String(x.row) === el.dataset.row);
+  if (!g) return;
+  const inp = el.querySelector("input");
+  const st = el.querySelector(".st");
+  const v = forced != null ? { value: forced } : validate(inp.value);
+  if (v.error) { st.className = "st err"; st.textContent = v.error; inp.focus(); return false; }
+  const old = (g.scores[me.app] || {}).raw || "";
+  const oldN = A.parseScore(old), newN = A.parseScore(v.value);
+  if (old !== "" && (oldN == null || newN == null || Math.abs(oldN - newN) > 1e-9)) {
+    const msg = v.value === "" ? `Удалить оценку ${shown(old)} у ${g.name}?` : `Изменить оценку ${g.name}: ${shown(old)} → ${shown(v.value)}?`;
+    if (!confirm(msg)) { inp.value = shown(old); delete inp.dataset.dirty; return false; }
+  } else if (old !== "" && v.value !== "" && Math.abs(oldN - newN) < 1e-9) {
+    st.className = "st ok"; st.textContent = "Уже сохранено"; delete inp.dataset.dirty; return true;
+  }
+  st.className = "st busy"; st.textContent = "Сохраняю…";
+  try {
+    await writeScore(g, v.value);
+    g.scores[me.app] = { raw: v.value, num: A.parseScore(v.value) };
+    inp.value = shown(v.value); delete inp.dataset.dirty;
+    el.classList.toggle("saved", v.value !== "");
+    st.className = "st ok"; st.textContent = v.value === "" ? "Оценка удалена" : "✓ Сохранено — уже на табло";
+    setTimeout(() => { if (st.classList.contains("ok")) st.textContent = ""; }, 4000);
+    return true;
+  } catch (e) {
+    st.className = "st err"; st.textContent = "Не сохранено: " + e.message;
+    return false;
+  }
+}
+
+document.addEventListener("click", e => {
+  const el = e.target.closest(".g"); if (!el) return;
+  if (e.target.closest("button.save")) submit(el);
+  if (e.target.closest("button.dns")) { el.querySelector("input").value = "н/я"; submit(el, "0"); }
+});
+document.addEventListener("input", e => { if (e.target.matches(".g input")) e.target.dataset.dirty = "1"; });
+document.addEventListener("keydown", async e => {
+  if (e.key !== "Enter" || !e.target.matches(".g input")) return;
+  e.preventDefault();
+  const el = e.target.closest(".g");
+  const ok = await submit(el);
+  if (ok) {
+    const all = [...document.querySelectorAll(".g")];
+    const next = all[all.indexOf(el) + 1];
+    if (next) next.querySelector("input").focus();
+  }
+});
+window.addEventListener("storage", e => { if (DEMO && e.key === A.DEMO_KEY) load(); });
+
+/* ---------- start ---------- */
+(async () => {
+  if (!KEY) {
+    const demo = a => `<a href="?demo=1&key=demo-M-${a}">${A.APPARATUS[a].short}</a>`;
+    $("app").innerHTML = `<div class="nokey"><b>Откройте персональную ссылку судьи.</b><br>
+      Каждая ссылка привязана к одному снаряду — её выдаёт организатор.<br><br>
+      Демо (мальчики): ${A.ORDER.M.map(demo).join("")}<br>
+      Демо (девочки): ${A.ORDER.F.map(a => `<a href="?demo=1&key=demo-F-${a}">${A.APPARATUS[a].full}</a>`).join("")}</div>`;
+    return;
+  }
+  try {
+    if (DEMO) A.demoInit();
+    me = await whoami();
+    $("role").textContent = "судья · " + (me.gender === "F" ? "девочки" : "мальчики");
+    document.title = "Судья · " + A.APPARATUS[me.app].short + " — ArtVin Cup";
+    await load();
+    setInterval(load, DEMO ? 3000 : 8000);
+  } catch (e) {
+    $("app").innerHTML = `<div class="nokey"><b>Ссылка не работает.</b><br>${A.esc(e.message)}<br>Попросите у организатора новую ссылку.</div>`;
+  }
+})();
+</script>
+</body>
+</html>
