@@ -14,6 +14,7 @@
 var JUDGE_PAGE = "https://miner229.github.io/table-site/demo/judge.html";
 var SETTINGS_TAB = "Настройки";
 var LOG_TAB = "Журнал";
+var MAX_SCORE = 10;
 
 var APPS = {
   floor:  "Вольные упражнения", pommel: "Конь-махи", rings: "Кольца", vault: "Опорный прыжок",
@@ -99,13 +100,13 @@ function doPost(e) {
     if (!st) throw new Error("Поток не найден в «Настройках»");
     if (st.gender !== j.gender) throw new Error("Этот поток не для вашего снаряда");
 
-    // value: "" (удалить) or number 0..20 with up to 3 decimals; 0 = «не выступал»
+    // value: "" (удалить) or number 0..MAX_SCORE with up to 3 decimals; 0 = «не выступал»
     var raw = String(b.value == null ? "" : b.value).trim().replace(",", ".");
     var value = "";
     if (raw !== "") {
       if (!/^\d{1,2}(\.\d{1,3})?$/.test(raw)) throw new Error("Неверный формат оценки");
       value = Number(raw);
-      if (value < 0 || value > 20) throw new Error("Оценка должна быть от 0 до 20");
+      if (value < 0 || value > MAX_SCORE) throw new Error("Оценка должна быть от 0 до " + MAX_SCORE);
     }
 
     lock.waitLock(15000);

@@ -12,6 +12,7 @@
 "use strict";
 
 const CONFIG = {
+  MAX_SCORE: 10,
   SHEET_ID: "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w",
   SETTINGS_TAB: "Настройки",
   // Apps Script web-app URL (judges write scores through it). Can also come from ?api=... in the judge link.
@@ -347,7 +348,7 @@ function demoInit(force) {
   return d;
 }
 function demoSave(d) { localStorage.setItem(DEMO_KEY, JSON.stringify(d)); }
-function randomScore() { return (9.5 + Math.random() * 5).toFixed(3); }
+function randomScore() { return (7.2 + Math.random() * 2.6).toFixed(3); }
 
 /* Unified loaders. src: "sheet" | "demo" | "script" */
 async function loadSettings(src) {
