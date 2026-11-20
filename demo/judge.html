@@ -46,6 +46,16 @@ select { flex: 1; min-width: 200px; }
 .rotline { margin-top: 10px; font-size: 13px; color: var(--muted); letter-spacing: .04em; }
 .rotline b { color: var(--gold-2); }
 
+.status { margin: 12px 0 4px; padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5; border: 1px solid var(--line); background: var(--card); }
+.status b { color: var(--gold-1); }
+.status.wait { border-color: rgba(127,211,138,.45); }
+.status.new { border-color: var(--gold-2); background: rgba(242,189,87,.12); animation: pulse 1.2s ease 3; }
+.status.fin { border-color: rgba(127,211,138,.45); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(242,189,87,.25); } }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips span { font-size: 12px; padding: 4px 9px; border-radius: 999px; background: var(--card-2); color: var(--muted); border: 1px solid rgba(255,255,255,.08); }
+.chips span.ok { color: var(--ok); border-color: rgba(127,211,138,.35); }
+.chips span.me { color: var(--gold-1); border-color: rgba(242,189,87,.45); }
 .group-title { margin: 18px 4px 8px; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold-2); font-weight: 700; }
 .g {
   display: grid; grid-template-columns: 2em minmax(0,1fr) auto; gap: 10px; align-items: center;
@@ -104,6 +114,7 @@ const UI = "artvin-judge-ui";
 let me = null;              // { gender, app }
 let settings = [], current = null, stream = null, info = null;
 let showAll = false;
+let lastRot = null, newGroupUntil = 0;
 let streamChoice = "auto";
 try { const u = JSON.parse(localStorage.getItem(UI)) || {}; showAll = !!u.showAll; streamChoice = u.stream || "auto"; } catch (e) {}
 const saveUI = () => { try { localStorage.setItem(UI, JSON.stringify({ showAll, stream: streamChoice })); } catch (e) {} };
@@ -181,6 +192,30 @@ function render() {
     sections = [{ title: "Сейчас на снаряде", list: mine }];
   }
 
+  // rotation status: done / waiting for others / new group / finished
+  if (lastRot != null && info.rotation > lastRot) {
+    newGroupUntil = Date.now() + 15000;
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  }
+  lastRot = info.rotation;
+  const prog = A.rotationProgress(stream, info.rotation);
+  const my = prog[me.app] || { done: 0, total: 0 };
+  const chips = stream.apps.map(a => {
+    const p = prog[a];
+    const cls = a === me.app ? "me" : (p.total && p.done === p.total ? "ok" : "");
+    return `<span class="${cls}">${A.APPARATUS[a].short} ${p.done}/${p.total}</span>`;
+  }).join("");
+  let statusCls = "", statusText;
+  if (info.finished) { statusCls = "fin"; statusText = "<b>Поток завершён.</b> Все оценки у секретаря."; }
+  else if (Date.now() < newGroupUntil) { statusCls = "new"; statusText = `<b>Ротация ${info.rotation}: к вам пришла новая группа.</b> Список обновлён.`; }
+  else if (my.total && my.done === my.total) {
+    statusCls = "wait";
+    statusText = info.mode === "auto"
+      ? "<b>Ваша группа готова ✓</b> Ждём другие снаряды — новая группа появится здесь автоматически."
+      : "<b>Ваша группа готова ✓</b> Следующая группа появится после смены ротации.";
+  } else statusText = `Выставлено <b>${my.done} из ${my.total}</b> оценок на вашем снаряде.`;
+  const statusHtml = `<div class="status ${statusCls}" id="status">${statusText}<div class="chips">${chips}</div></div>`;
+
   const sig = current.tab + "|" + info.rotation + "|" + showAll + "|" + sections.map(s => s.list.map(g => g.row + g.name).join(",")).join("/");
   const head = `
     <div class="app-card">
@@ -196,9 +231,15 @@ function render() {
       <div class="rotline">Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}</div>
     </div>`;
 
+  // don't swap the list while the judge is typing a score — wait until it's saved
+  const typing = renderedSig && sig !== renderedSig && document.querySelector(".g input[data-dirty]");
+  if (typing) {
+    $("status").outerHTML = `<div class="status new" id="status"><b>Пришла новая группа.</b> Сохраните текущую оценку — список обновится.<div class="chips">${chips}</div></div>`;
+    return;
+  }
   if (sig !== renderedSig) {
     renderedSig = sig;
-    $("app").innerHTML = head + sections.map(s => `
+    $("app").innerHTML = head + statusHtml + sections.map(s => `
       <div class="group-title">${A.esc(s.title)}</div>
       ${s.list.length ? s.list.map((g, i) => rowHtml(g, i + 1)).join("") : '<div class="empty">На этом снаряде сейчас никого нет</div>'}
     `).join("");
@@ -216,6 +257,7 @@ function render() {
       if (document.activeElement !== inp && !inp.dataset.dirty) inp.value = shown(raw);
       el.classList.toggle("saved", raw !== "");
     });
+    $("status").outerHTML = statusHtml;
     document.querySelector(".rotline").innerHTML = `Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}`;
   }
 }
@@ -274,6 +316,8 @@ async function submit(el, forced) {
     el.classList.toggle("saved", v.value !== "");
     st.className = "st ok"; st.textContent = v.value === "" ? "Оценка удалена" : "✓ Сохранено — уже на табло";
     setTimeout(() => { if (st.classList.contains("ok")) st.textContent = ""; }, 4000);
+    info = A.currentRotation(stream, current, null);
+    render();
     return true;
   } catch (e) {
     st.className = "st err"; st.textContent = "Не сохранено: " + e.message;

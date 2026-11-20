@@ -178,6 +178,31 @@ main {
 }
 @keyframes fresh { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 
+nav.apps button .cnt { margin-left: .5em; font-weight: 600; opacity: .75; letter-spacing: .04em; }
+nav.apps button.done .cnt::after { content: " ✓"; }
+.rot .fin { color: #fff; }
+
+/* rotation change announcement */
+#rotOverlay {
+  position: fixed; inset: 0; z-index: 30; display: none; place-items: center; text-align: center;
+  background: radial-gradient(ellipse at center, rgba(40,30,14,.97), rgba(7,6,5,.98) 70%);
+}
+#rotOverlay.show { display: grid; animation: ovIn .6s ease; }
+@keyframes ovIn { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+#rotOverlay .k { font-size: 26px; letter-spacing: .4em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+#rotOverlay h1 {
+  margin: 10px 0 26px; font-size: 140px; line-height: 1; font-weight: 900; font-style: italic; text-transform: uppercase;
+  background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#rotOverlay .moves { display: grid; grid-template-columns: repeat(3, auto); gap: 14px 46px; justify-content: center; font-size: 30px; font-weight: 700; }
+#rotOverlay .moves span { white-space: nowrap; }
+#rotOverlay .moves i { font-style: normal; color: var(--gold-2); margin: 0 .35em; }
+#rotOverlay .moves b { color: var(--gold-1); }
+@media (max-width: 899px) {
+  #rotOverlay h1 { font-size: 64px; }
+  #rotOverlay .k { font-size: 13px; }
+  #rotOverlay .moves { grid-template-columns: auto; font-size: 18px; gap: 8px; }
+}
 .empty-msg { margin: auto; text-align: center; color: var(--muted); font-size: 26px; font-weight: 600; letter-spacing: .06em; }
 .empty-msg b { display: block; color: var(--gold-2); font-size: 34px; margin-bottom: 10px; }
 
@@ -287,6 +312,7 @@ body.pointer #gear, #gear:focus { opacity: 1; }
   </div>
 </main>
 
+<div id="rotOverlay" aria-live="polite"></div>
 <div class="demo-badge" id="demoBadge" hidden>демо-данные</div>
 <button id="gear" title="Настройки (S)">⚙</button>
 <aside id="panel">
@@ -320,6 +346,7 @@ body.pointer #gear, #gear:focus { opacity: 1; }
   </div>
   <hr>
   <div class="hint">S — показать/скрыть панель. Ссылка для экрана: <span id="tvLink"></span></div>
+  <div class="hint"><a id="secLink" href="secretary.html" target="_blank" style="color:var(--gold-1)">Протокол секретаря →</a></div>
 </aside>
 
 <script src="core.js"></script>
@@ -449,17 +476,22 @@ function render(advanced) {
 
   // header
   const pend = pending[current.tab];
-  $("rotInfo").innerHTML = `Ротация ${rotInfo.shown} из ${rotInfo.total}` +
+  $("rotInfo").innerHTML = (rotInfo.finished && !pend
+      ? `<span class="fin">Все снаряды пройдены</span> · ротация ${rotInfo.shown} из ${rotInfo.total}`
+      : `Ротация ${rotInfo.shown} из ${rotInfo.total}`) +
     (pend ? `<span class="pending">→ ${pend.r}-я через ${Math.max(0, Math.ceil((state.hold * 1000 - (Date.now() - pend.since)) / 1000))} с</span>` : "");
 
   const groups = A.groupsAt(stream, rotInfo.shown);
+  const prog = A.rotationProgress(stream, rotInfo.shown);
+  announceRotation();
   let step = steps[stepIdx];
   if (isPhone() && pinnedApp && groups[pinnedApp]) step = { app: pinnedApp, page: 0, pages: 1, per: 1e9 };
 
   // apparatus strip
   const nav = $("appsNav");
   nav.innerHTML = stream.apps.map(a =>
-    `<button data-app="${a}" class="${step && step.app === a ? "on" : ""} ${groups[a].length ? "" : "empty"}">${A.APPARATUS[a].short}</button>`
+    `<button data-app="${a}" class="${step && step.app === a ? "on" : ""} ${groups[a].length ? "" : "empty"} ${prog[a].total && prog[a].done === prog[a].total ? "done" : ""}">${A.APPARATUS[a].short}${
+      prog[a].total ? `<span class="cnt">${prog[a].done}/${prog[a].total}</span>` : ""}</button>`
   ).join("") + `<button class="auto ${pinnedApp ? "" : "on"}" data-app="">Авто</button>`;
   if (isPhone()) {
     const on = nav.querySelector("button.on:not(.auto)");
@@ -522,6 +554,27 @@ function render(advanced) {
   }
   if (!sameView || advanced) restartProgress();
   lastKey = key;
+}
+
+// Big "РОТАЦИЯ N" screen when the groups move to the next apparatus
+const announced = {};
+let overlayT;
+function announceRotation() {
+  const tab = current.tab, r = rotInfo.shown;
+  if (announced[tab] == null || announced[tab] === r) { announced[tab] = r; return; }
+  const forward = r > announced[tab];
+  announced[tab] = r;
+  if (!forward) return;
+  const o = A.ORDER[stream.gender];
+  const moves = stream.apps.filter(a => A.groupsAt(stream, r)[a].length).map(a => {
+    const from = o[(o.indexOf(a) - 1 + o.length) % o.length];
+    return `<span>${A.APPARATUS[from].short}<i>→</i><b>${A.APPARATUS[a].short}</b></span>`;
+  });
+  const ov = $("rotOverlay");
+  ov.innerHTML = `<div><div class="k">Смена снарядов</div><h1>Ротация ${r}</h1><div class="moves">${moves.join("")}</div></div>`;
+  ov.classList.add("show");
+  clearTimeout(overlayT);
+  overlayT = setTimeout(() => ov.classList.remove("show"), 7000);
 }
 
 // Olympic convention: SURNAME Name
@@ -597,6 +650,7 @@ function syncPanel() {
   if (state.fs !== 42) tvParams.set("fs", state.fs);
   const q = tvParams.toString();
   $("tvLink").textContent = base + (q ? "?" + q : "");
+  $("secLink").href = "secretary.html" + (state.src === "demo" ? "?src=demo" : "");
   const jb = location.pathname.replace(/[^/]*$/, "") + "judge.html";
   $("demoLinks").innerHTML = (current ? A.ORDER[current.gender] : A.ORDER.M).map(a =>
     `<a href="${jb}?demo=1&key=demo-${current ? current.gender : "M"}-${a}" target="_blank">${A.APPARATUS[a].short}</a>`).join("");
