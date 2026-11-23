@@ -23,7 +23,7 @@ function setup() {
   };
   const log = [];
   let props = {};
-  let lockDepth = 0, maxLockDepth = 0;
+  let lockDepth = 0, maxLockDepth = 0, slept = 0;
   const sheet = name => ({
     getDataRange: () => ({ getDisplayValues: () => tabs[name].map(r => r.map(String)) }),
     getRange: (r, c) => ({
@@ -44,6 +44,7 @@ function setup() {
       waitLock: () => { lockDepth++; maxLockDepth = Math.max(maxLockDepth, lockDepth); },
       releaseLock: () => { lockDepth = Math.max(0, lockDepth - 1); },
     }) },
+    Utilities: { sleep: ms => { slept += ms; } },
     ContentService: { createTextOutput: s => ({ setMimeType: () => JSON.parse(s) }), MimeType: { JSON: 1 } },
   };
   tabs["Журнал"] = [];
@@ -52,7 +53,7 @@ function setup() {
   const keys = ctx.makeKeys_();
   const key = {}; Object.keys(keys).forEach(k => { key[keys[k]] = k; });
   const post = b => ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ action: "score" }, b)) } });
-  return { ctx, tabs, key, post, log, lock: () => ({ lockDepth, maxLockDepth }) };
+  return { ctx, tabs, key, keys, post, log, lock: () => ({ lockDepth, maxLockDepth }), slept: () => slept };
 }
 const IVANOV = { tab: "Пятница 1", row: 3, name: "Иванов Иван" };
 
@@ -68,7 +69,7 @@ test("a judge writes only the column of the apparatus in their link", () => {
 
 test("wrong key, wrong gender, header row, renamed row and scores over 10 are rejected", () => {
   const { tabs, key, post } = setup();
-  assert.match(post({ ...IVANOV, key: "nope", value: "9" }).error, /недействительна/);
+  assert.match(post({ ...IVANOV, key: "12345678", value: "9" }).error, /Неверный код/);
   assert.match(post({ ...IVANOV, key: key["F:beam"], value: "9" }).error, /не для вашего снаряда/);
   assert.match(post({ tab: "Пятница 1", row: 1, name: "ФИО", key: key["M:floor"], value: "9" }).error, /Неверная строка/);
   assert.match(post({ ...IVANOV, name: "Сидоров", key: key["M:floor"], value: "9" }).error, /Список изменился/);
@@ -132,4 +133,30 @@ test("read API: settings, stream tabs, whoami", () => {
   assert.equal(ctx.doGet({ parameter: { action: "tab", tab: "Пятница 2" } }).values.length, 2);
   assert.equal(ctx.doGet({ parameter: { action: "tab", tab: "Журнал" } }).ok, false);
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.doGet({ parameter: { action: "whoami", key: key["F:beam"] } }))), { ok: true, gender: "F", app: "beam", name: "Бревно" });
+});
+
+test("judge codes: 10 unique 8-digit codes, one per apparatus; spaces allowed; wrong code is slowed down", () => {
+  const { ctx, keys, key, post, tabs, slept } = setup();
+  const codes = Object.keys(keys);
+  assert.equal(codes.length, 10);
+  assert.ok(codes.every(c => /^[1-9]\d{7}$/.test(c)));
+  assert.equal(new Set(Object.values(keys)).size, 10);
+  const spaced = key["M:pbars"].slice(0, 4) + " " + key["M:pbars"].slice(4);
+  assert.equal(ctx.doGet({ parameter: { action: "whoami", key: spaced } }).app, "pbars");
+  assert.equal(post({ ...IVANOV, key: spaced, value: "8.8", expected: "" }).ok, true);
+  assert.equal(tabs["Пятница 1"][2][9], "8.8");                         // Брусья
+  const before = slept();
+  assert.equal(ctx.doGet({ parameter: { action: "whoami", key: "0000 0000" } }).ok, false);
+  assert.ok(slept() - before >= 1000, "wrong code waits before answering");
+});
+
+test("every code opens exactly one apparatus column and no other", () => {
+  const { tabs, key, post } = setup();
+  const cols = { floor: 5, pommel: 6, rings: 7, vault: 8, pbars: 9, hbar: 10 };
+  Object.entries(cols).forEach(([app, col]) => {
+    const row = tabs["Пятница 1"][2].slice();
+    assert.equal(post({ ...IVANOV, key: key["M:" + app], value: "7", expected: row[col] }).ok, true);
+    const after = tabs["Пятница 1"][2];
+    after.forEach((c, i) => { if (i !== col) assert.equal(c, row[i], `${app} code changed column ${i}`); });
+  });
 });

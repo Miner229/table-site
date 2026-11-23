@@ -306,7 +306,7 @@ body.pointer #gear, #gear:focus { opacity: 1; }
     <div class="progress"><i id="prog"></i></div>
   </div>
   <div class="tbl">
-    <div class="thead"><span id="thPlace">М</span><span class="c-name">Гимнаст</span><span class="c-club">Клуб / регион</span><span>Оценка</span></div>
+    <div class="thead"><span id="thPlace"></span><span class="c-name">Гимнаст</span><span class="c-club">Клуб / регион</span><span>Оценка</span></div>
     <div class="table" id="table"></div>
   </div>
 </main>
@@ -336,9 +336,6 @@ body.pointer #gear, #gear:focus { opacity: 1; }
   <label>Размер шрифта, px <input type="number" id="pFs" min="16" max="120" step="1" /></label>
   <label>Минимум участников на экране <input type="number" id="pRows" min="3" max="40" step="1" /></label>
   <div class="hint" id="fitHint"></div>
-  <label>Места
-    <select id="pPlaces"><option value="first">Только 1-е место</option><option value="all">Все места</option></select>
-  </label>
   <label>Секунд на экран <input type="number" id="pSec" min="4" max="120" step="1" /></label>
   <label>Пауза перед сменой ротации, сек <input type="number" id="pHold" min="0" max="600" step="5" /></label>
   <div class="hint">Пауза — только для авто-режима: после последней оценки табло ещё показывает старую ротацию, чтобы зрители увидели результат.</div>
@@ -362,8 +359,8 @@ const params = new URLSearchParams(location.search);
 const STORE = "artvin-display-v2";
 
 /* ---------- state ---------- */
-const saved = (() => { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } })();
-const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, rows: 10, places: "first", sec: 12, hold: 60, sim: true }, saved);
+const saved = (() => { try { const v = JSON.parse(localStorage.getItem(STORE)) || {}; delete v.places; return v; } catch (e) { return {}; } })();
+const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, rows: 10, sec: 12, hold: 60, sim: true }, saved);
 if (params.get("src")) state.src = params.get("src") === "demo" ? "demo" : "sheet";
 if (params.get("demo")) state.src = "demo";
 if (params.get("stream")) state.stream = params.get("stream");
@@ -371,7 +368,6 @@ if (params.get("rot")) state.mode = { manual: "manual", auto: "auto", time: "tim
 if (params.get("fs")) state.fs = +params.get("fs") || state.fs;
 if (params.get("sec")) state.sec = +params.get("sec") || state.sec;
 if (params.get("rows")) state.rows = Math.max(3, +params.get("rows") || state.rows);
-if (params.get("places")) state.places = params.get("places") === "all" ? "all" : "first";
 function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
 
 let settings = [];        // streams from «Настройки»
@@ -499,7 +495,6 @@ function buildSteps() {
 function render(advanced) {
   fitFont();
   $("demoBadge").hidden = state.src !== "demo";
-  $("thPlace").textContent = state.places === "all" ? "М" : "";
   $("demoBox").style.display = state.src === "demo" ? "" : "none";
 
   // header
@@ -559,7 +554,7 @@ function render(advanced) {
     if (it.status === "scored" && it.place === 1) cls.push("p1");
     if (fresh.has(it.g.idx)) cls.push("fresh");
     // ranking order is unchanged; only the number shown is simplified
-    const place = it.status !== "scored" ? "" : (state.places === "all" || it.place === 1 ? it.place : "");
+    const place = it.status === "scored" && it.place === 1 ? 1 : "";   // only 1st place is shown
     const score = it.status === "scored" ? A.fmtScore(it.score) : it.status === "dns" ? "н/я" : "ожидает";
     return `<div class="${cls.join(" ")}" data-k="${it.g.idx}">
       <span class="place">${place}</span>
@@ -662,7 +657,6 @@ function syncPanel() {
   $("pMode").value = state.mode;
   $("pFs").value = state.fs;
   $("pRows").value = state.rows;
-  $("pPlaces").value = state.places;
   $("fitHint").textContent = !isPhone() && fitted && fitted < state.fs
     ? `Экран невысокий: шрифт уменьшен до ${fitted} px, чтобы поместилось ${state.rows}.` : "";
   $("warnBox").innerHTML = stream ? A.streamWarnings(stream).map(w => `<div class="hint" style="color:#ff9b8b">⚠ ${A.esc(w)}</div>`).join("") : "";
@@ -683,7 +677,6 @@ function syncPanel() {
   if (state.mode) tvParams.set("rot", state.mode);
   if (state.fs !== 42) tvParams.set("fs", state.fs);
   if (state.rows !== 10) tvParams.set("rows", state.rows);
-  if (state.places !== "first") tvParams.set("places", state.places);
   const q = tvParams.toString();
   $("tvLink").textContent = base + (q ? "?" + q : "");
   $("secLink").href = "secretary.html" + (state.src === "demo" ? "?src=demo" : "");
@@ -712,7 +705,6 @@ $("pSrc").onchange = e => setState({ src: e.target.value, stream: "auto" }, true
 $("pMode").onchange = e => setState({ mode: e.target.value }, true);
 $("pFs").onchange = e => { setState({ fs: Math.max(16, Math.min(120, +e.target.value || 42)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
 $("pRows").onchange = e => { setState({ rows: Math.max(3, Math.min(40, +e.target.value || 10)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
-$("pPlaces").onchange = e => setState({ places: e.target.value });
 $("pSec").onchange = e => { setState({ sec: Math.max(4, +e.target.value || 12) }); startCycle(); };
 $("pHold").onchange = e => setState({ hold: Math.max(0, +e.target.value || 0) }, true);
 $("pSim").onchange = e => setState({ sim: e.target.checked });

@@ -82,6 +82,19 @@ select { flex: 1; min-width: 200px; }
   font-size: 12px; color: var(--muted); text-align: center; }
 .foot .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: 1px; }
 .foot .dot.bad { background: var(--err); }
+.login { margin-top: 30px; padding: 22px 18px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); text-align: center; }
+.login h2 { margin: 0 0 6px; font-size: 20px; }
+.login p { margin: 0 0 16px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.login input { width: 100%; max-width: 280px; font: 800 30px "Montserrat", sans-serif; letter-spacing: .18em; text-align: center;
+  color: #fff; background: #0d0b08; border: 1px solid rgba(242,189,87,.45); border-radius: 12px; padding: 12px 8px; }
+.login button { display: block; margin: 14px auto 0; width: 100%; max-width: 280px; padding: 13px; border: 0; border-radius: 12px;
+  background: var(--gold-grad); color: #1a1205; font: 800 17px "Montserrat", sans-serif; cursor: pointer; }
+.login button:disabled { opacity: .6; }
+.login .err { color: var(--err); margin-top: 12px; min-height: 1.2em; font-size: 14px; }
+.login .demo { margin-top: 16px; font-size: 12.5px; color: var(--muted); line-height: 1.7; }
+.login .demo code { color: var(--gold-1); font-size: 13px; }
+.logout { background: none; border: 1px solid rgba(255,255,255,.15); color: var(--muted); border-radius: 999px; padding: 5px 12px;
+  font: 600 12px "Montserrat", sans-serif; cursor: pointer; margin-left: 10px; }
 .nokey { margin-top: 30px; padding: 18px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); line-height: 1.55; }
 .nokey a { color: var(--gold-1); margin-right: 10px; display: inline-block; margin-top: 6px; }
 @media (max-width: 420px) {
@@ -95,7 +108,7 @@ select { flex: 1; min-width: 200px; }
 <div class="wrap">
   <div class="top">
     <div class="wordmark"><span class="artvin">ARTVIN</span><span class="cup">Cup</span></div>
-    <div class="role" id="role">судья</div>
+    <div><span class="role" id="role">судья</span><button class="logout" id="logout" hidden>Выйти</button></div>
   </div>
   <div id="app"></div>
 </div>
@@ -106,8 +119,16 @@ select { flex: 1; min-width: 200px; }
 const A = ArtVin;
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-const KEY = params.get("key") || "";
-const DEMO = params.has("demo") || KEY.startsWith("demo-");
+// The judge's code decides the apparatus (checked by the server). It can come from the link (?key=…)
+// or be typed on the login screen; it is remembered on this device until «Выйти».
+const DEMO = params.has("demo") || (params.get("key") || "").startsWith("demo-");
+const CODE_STORE = DEMO ? "artvin-judge-code-demo" : "artvin-judge-code";
+let KEY = (params.get("key") || "").trim();
+if (!KEY) { try { KEY = localStorage.getItem(CODE_STORE) || ""; } catch (e) {} }
+// demo codes (demo mode only)
+const DEMO_CODES = {};
+A.ORDER.M.forEach((a, i) => (DEMO_CODES["1111000" + (i + 1)] = "M:" + a));
+A.ORDER.F.forEach((a, i) => (DEMO_CODES["2222000" + (i + 1)] = "F:" + a));
 const SRC = DEMO ? "demo" : "script";
 const UI = "artvin-judge-ui";
 
@@ -124,8 +145,9 @@ const saveUI = () => { try { localStorage.setItem(UI, JSON.stringify({ showAll }
 /* ---------- identity (the key decides the apparatus; it cannot be changed on this page) ---------- */
 async function whoami() {
   if (DEMO) {
-    const m = KEY.match(/^demo-([MF])-(\w+)$/);
-    if (!m || !A.ORDER[m[1]].includes(m[2])) throw new Error("Неверная демо-ссылка");
+    const code = DEMO_CODES[KEY.replace(/[\s-]/g, "")];
+    const m = code ? code.match(/^([MF]):(\w+)$/) : KEY.match(/^demo-([MF])-(\w+)$/);
+    if (!m || !A.ORDER[m[1]].includes(m[2])) throw new Error("Неверный код судьи");
     return { gender: m[1], app: m[2] };
   }
   const j = await A.scriptGet({ action: "whoami", key: KEY });
@@ -158,6 +180,7 @@ async function writeScore(g, value, expected) {
 
 /* ---------- load ---------- */
 async function load() {
+  if (!me) return;   // logged out
   try {
     settings = (await A.loadSettings(SRC)).filter(s => s.gender === me.gender);
     if (!settings.length) throw new Error("Нет потоков для этого снаряда");
@@ -366,27 +389,58 @@ document.addEventListener("keydown", async e => {
 });
 window.addEventListener("storage", e => { if (DEMO && e.key === A.DEMO_KEY) load(); });
 
-/* ---------- start ---------- */
-(async () => {
-  if (!KEY) {
-    const demo = a => `<a href="?demo=1&key=demo-M-${a}">${A.APPARATUS[a].short}</a>`;
-    $("app").innerHTML = `<div class="nokey"><b>Откройте персональную ссылку судьи.</b><br>
-      Каждая ссылка привязана к одному снаряду — её выдаёт организатор.<br><br>
-      Демо (мальчики): ${A.ORDER.M.map(demo).join("")}<br>
-      Демо (девочки): ${A.ORDER.F.map(a => `<a href="?demo=1&key=demo-F-${a}">${A.APPARATUS[a].full}</a>`).join("")}</div>`;
-    return;
-  }
+/* ---------- start: code entry ---------- */
+let pollTimer = null;
+function showLogin(msg) {
+  $("logout").hidden = true;
+  $("role").textContent = "судья";
+  $("app").innerHTML = `<form class="login" id="loginForm">
+      <h2>Вход для судьи</h2>
+      <p>Введите код вашего снаряда.<br>Код выдаёт организатор; он открывает только ваш снаряд.</p>
+      <input id="code" inputmode="numeric" autocomplete="off" placeholder="0000 0000" maxlength="11" aria-label="Код судьи" />
+      <button id="loginBtn">Войти</button>
+      <div class="err" id="loginErr">${A.esc(msg || "")}</div>
+      ${DEMO ? `<div class="demo">Демо-коды:<br>${Object.entries(DEMO_CODES).map(([c, v]) => {
+        const [g, app] = v.split(":");
+        return `${g === "M" ? "М" : "Ж"} · ${A.APPARATUS[app].short}: <code>${c.slice(0, 4)} ${c.slice(4)}</code>`;
+      }).join("<br>")}</div>` : ""}
+    </form>`;
+  $("code").focus();
+  $("loginForm").onsubmit = async e => {
+    e.preventDefault();
+    const v = $("code").value.trim();
+    if (!/^\d[\d\s-]{6,}\d$/.test(v)) { $("loginErr").textContent = "Код — 8 цифр"; return; }
+    $("loginBtn").disabled = true; $("loginErr").textContent = "Проверяю…";
+    KEY = v;
+    await start(true);
+  };
+}
+async function start(fromLogin) {
   try {
     if (DEMO) A.demoInit();
     me = await whoami();
+    try { localStorage.setItem(CODE_STORE, KEY); } catch (e) {}
+    // don't leave the code in the address bar
+    if (params.get("key")) history.replaceState(null, "", location.pathname + (DEMO ? "?demo=1" : ""));
     $("role").textContent = "судья · " + (me.gender === "F" ? "девочки" : "мальчики");
+    $("logout").hidden = false;
     document.title = "Судья · " + A.APPARATUS[me.app].short + " — ArtVin Cup";
+    renderedSig = "";
     await load();
-    setInterval(load, DEMO ? 3000 : 8000);
+    clearInterval(pollTimer);
+    pollTimer = setInterval(load, DEMO ? 3000 : 8000);
   } catch (e) {
-    $("app").innerHTML = `<div class="nokey"><b>Ссылка не работает.</b><br>${A.esc(e.message)}<br>Попросите у организатора новую ссылку.</div>`;
+    try { localStorage.removeItem(CODE_STORE); } catch (x) {}
+    KEY = "";
+    showLogin(fromLogin ? e.message : (e.message === "Неверный код судьи" ? "Код больше не действует — введите новый" : e.message));
   }
-})();
+}
+$("logout").onclick = () => {
+  if (!confirm("Выйти? Чтобы снова ставить оценки, нужно будет ввести код.")) return;
+  try { localStorage.removeItem(CODE_STORE); } catch (e) {}
+  clearInterval(pollTimer); me = null; KEY = ""; showLogin();
+};
+if (KEY) start(false); else showLogin();
 </script>
 </body>
 </html>
