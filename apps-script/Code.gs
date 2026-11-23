@@ -129,6 +129,12 @@ function doPost(e) {
 
     var cell = sh.getRange(row, col + 1);
     var old = cell.getDisplayValue();
+    // Two devices on the same apparatus: refuse to overwrite a score the judge has not seen.
+    // b.expected = the value the judge's page showed before the change ("" = empty).
+    if (b.expected !== undefined && !sameScore_(old, b.expected)) {
+      return json_({ ok: false, conflict: true, current: old, error: "Оценку уже изменили на другом устройстве: " + (old || "пусто") });
+    }
+    if (sameScore_(old, value === "" ? "" : String(value))) return json_({ ok: true, unchanged: true });
     if (value === "") cell.clearContent(); else cell.setValue(value);
     SpreadsheetApp.flush();
     log_([new Date(), APPS[j.app] + (j.gender === "F" ? " (Ж)" : " (М)"), b.tab, row, b.name, old, value === "" ? "удалено" : value]);
@@ -138,6 +144,13 @@ function doPost(e) {
   } finally {
     try { lock.releaseLock(); } catch (x) {}
   }
+}
+
+function sameScore_(a, b) {
+  var x = String(a == null ? "" : a).trim().replace(",", "."), y = String(b == null ? "" : b).trim().replace(",", ".");
+  if (x === "" || y === "") return x === y;
+  var nx = Number(x), ny = Number(y);
+  return isFinite(nx) && isFinite(ny) ? Math.abs(nx - ny) < 1e-9 : x === y;
 }
 
 function log_(row) {

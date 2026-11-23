@@ -117,6 +117,7 @@ let showAll = false;
 let lastRot = null, newGroupUntil = 0;
 let streamChoice = "auto";
 try { const u = JSON.parse(localStorage.getItem(UI)) || {}; showAll = !!u.showAll; streamChoice = u.stream || "auto"; } catch (e) {}
+if (params.get("stream")) streamChoice = params.get("stream");   // organiser can pin a judge to one stream
 const saveUI = () => { try { localStorage.setItem(UI, JSON.stringify({ showAll, stream: streamChoice })); } catch (e) {} };
 
 /* ---------- identity (the key decides the apparatus; it cannot be changed on this page) ---------- */
@@ -131,7 +132,7 @@ async function whoami() {
 }
 
 /* ---------- write ---------- */
-async function writeScore(g, value) {
+async function writeScore(g, value, expected) {
   if (DEMO) {
     // same checks as the server: apparatus comes only from the key
     const d = A.demoInit();
@@ -142,11 +143,16 @@ async function writeScore(g, value) {
     const col = parsed.appCols[me.app];
     if (col == null) throw new Error("В таблице нет колонки вашего снаряда");
     if (A.norm(values[g.row - 1][parsed.nameCol]) !== A.norm(g.name)) throw new Error("Строка изменилась — обновите");
+    const now = values[g.row - 1][col] || "";
+    if (!A.sameScore(now, expected)) {
+      const e = new Error("Оценку уже изменили на другом устройстве: " + (now || "пусто"));
+      e.conflict = true; e.current = now; throw e;
+    }
     values[g.row - 1][col] = value;
     A.demoSave(d);
     return;
   }
-  await A.scriptPost({ action: "score", key: KEY, tab: current.tab, row: g.row, name: g.name, value });
+  await A.scriptPost({ action: "score", key: KEY, tab: current.tab, row: g.row, name: g.name, value, expected });
 }
 
 /* ---------- load ---------- */
@@ -228,7 +234,8 @@ function render() {
         </select>
         <button class="btn ${showAll ? "on" : ""}" id="allBtn">Весь поток</button>
       </div>
-      <div class="rotline">Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}</div>
+      ${A.streamWarnings(stream).map(w => `<div class="rotline" style="color:#ff9b8b">⚠ ${A.esc(w)}</div>`).join("")}
+      <div class="rotline" id="rotline">Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}</div>
     </div>`;
 
   // don't swap the list while the judge is typing a score — wait until it's saved
@@ -258,7 +265,7 @@ function render() {
       el.classList.toggle("saved", raw !== "");
     });
     $("status").outerHTML = statusHtml;
-    document.querySelector(".rotline").innerHTML = `Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}`;
+    $("rotline").innerHTML = `Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}`;
   }
 }
 
@@ -301,6 +308,7 @@ async function submit(el, forced) {
   const v = forced != null ? { value: forced } : validate(inp.value);
   if (v.error) { st.className = "st err"; st.textContent = v.error; inp.focus(); return false; }
   const old = (g.scores[me.app] || {}).raw || "";
+  if (old === "" && v.value === "") { st.className = "st"; st.textContent = ""; delete inp.dataset.dirty; return false; }
   const oldN = A.parseScore(old), newN = A.parseScore(v.value);
   if (old !== "" && (oldN == null || newN == null || Math.abs(oldN - newN) > 1e-9)) {
     const msg = v.value === "" ? `Удалить оценку ${shown(old)} у ${g.name}?` : `Изменить оценку ${g.name}: ${shown(old)} → ${shown(v.value)}?`;
@@ -310,19 +318,32 @@ async function submit(el, forced) {
   }
   st.className = "st busy"; st.textContent = "Сохраняю…";
   try {
-    await writeScore(g, v.value);
-    g.scores[me.app] = { raw: v.value, num: A.parseScore(v.value) };
+    await writeScore(g, v.value, old);
+    setLocal(g, v.value);
     inp.value = shown(v.value); delete inp.dataset.dirty;
     el.classList.toggle("saved", v.value !== "");
-    st.className = "st ok"; st.textContent = v.value === "" ? "Оценка удалена" : "✓ Сохранено — уже на табло";
+    st.className = "st ok"; st.textContent = v.value === "" ? "Оценка удалена" : "✓ Сохранено — на табло через несколько секунд";
     setTimeout(() => { if (st.classList.contains("ok")) st.textContent = ""; }, 4000);
     info = A.currentRotation(stream, current, null);
     render();
     return true;
   } catch (e) {
+    if (e.conflict) {
+      // someone else saved first: show their value, the judge decides again
+      setLocal(g, e.current || "");
+      inp.value = shown(e.current || ""); delete inp.dataset.dirty;
+      el.classList.toggle("saved", !!e.current);
+    }
     st.className = "st err"; st.textContent = "Не сохранено: " + e.message;
     return false;
   }
+}
+// keep both the row we edited and the latest loaded copy of the stream in sync
+function setLocal(g, raw) {
+  const val = { raw, num: A.parseScore(raw) };
+  g.scores[me.app] = val;
+  const fresh = stream && stream.gymnasts.find(x => x.row === g.row && x.name === g.name);
+  if (fresh) fresh.scores[me.app] = val;
 }
 
 document.addEventListener("click", e => {

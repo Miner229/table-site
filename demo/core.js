@@ -63,6 +63,21 @@ function apparatusFromText(text, gender) {
   if (/бревн/.test(t)) return "beam";
   return null;
 }
+// A cell that is exactly an apparatus name (used for start-group separator rows).
+// Strict on purpose: a surname like «Вольнов» must never be read as «Вольные».
+const APP_LABELS = new Set([
+  "вольные", "вольные упражнения", "вольные упр", "конь", "конь-махи", "конь махи", "махи", "кольца",
+  "прыжок", "опорный прыжок", "брусья", "параллельные брусья", "брусья разной высоты", "разновысокие брусья",
+  "перекладина", "бревно",
+]);
+function isApparatusLabel(text) {
+  return APP_LABELS.has(norm(text).replace(/[.:;]+$/, ""));
+}
+// «Фамилия Имя»: at least two words, letters only — not a category label like «2018», «3 взрослый», «Юг»
+function looksLikePerson(text) {
+  const t = String(text || "").trim();
+  return !/\d/.test(t) && t.split(/\s+/).filter(w => /\p{L}/u.test(w)).length >= 2;
+}
 function parseScore(raw) {
   const s = String(raw == null ? "" : raw).trim().replace(",", ".");
   if (s === "") return null;
@@ -150,14 +165,13 @@ function parseStream(values, gender, rowBase) {
     const filled = cells.filter(Boolean);
     if (!filled.length) return;
     const name = cells[nameCol] || "";
-    const hasData = (yearCol >= 0 && cells[yearCol]) || (clubCol >= 0 && cells[clubCol]);
-    if (!hasData && filled.length <= 2) {
-      // separator row: apparatus name → start group; anything else (e.g. «2018») → ignored
-      const a = filled.map(f => apparatusFromText(f, gender)).find(Boolean);
-      if (a) section = a;
-      return;
-    }
-    if (!name) return;
+    const hasData = (yearCol >= 0 && cells[yearCol]) || (clubCol >= 0 && cells[clubCol]) ||
+      (startCol >= 0 && cells[startCol]) || Object.values(appCols).some(i => cells[i]);
+    // separator row «Кольца» → everyone below starts on rings
+    const label = !hasData && filled.length <= 2 ? filled.find(isApparatusLabel) : null;
+    if (label) { section = apparatusFromText(label, gender); return; }
+    // category rows («2018», «3 взрослый», «Юг») are skipped; a gymnast without year/club is kept
+    if (!name || (!hasData && !looksLikePerson(name))) return;
     let start = startCol >= 0 ? apparatusFromText(cells[startCol], gender) : null;
     if (!start) start = section;
     if (start && !ORDER[gender].includes(start)) start = null;
@@ -246,6 +260,21 @@ function groupsAt(stream, r) {
   return res;
 }
 
+// Problems that would make a gymnast or an apparatus silently disappear from the screens
+function streamWarnings(stream) {
+  const w = [];
+  const missing = ORDER[stream.gender].filter(a => !stream.apps.includes(a));
+  if (missing.length) w.push("Нет колонки: " + missing.map(a => APPARATUS[a].short).join(", "));
+  const placed = stream.gymnasts.filter(g => g.start).length;
+  const loose = stream.gymnasts.length - placed;
+  if (placed && loose) w.push(`Без стартового снаряда: ${loose} чел. — их нет на табло и у судей`);
+  if (!placed && stream.gymnasts.length) w.push("Ни у кого не указан стартовый снаряд — все показаны на всех снарядах");
+  const seen = {}, dup = new Set();
+  stream.gymnasts.forEach(g => { const k = norm(g.name); if (seen[k]) dup.add(g.name); seen[k] = 1; });
+  if (dup.size) w.push("Повторяется ФИО: " + [...dup].join(", "));
+  return w;
+}
+
 /* ---------- ranking ---------- */
 // status: "scored" | "dns" (0 = не выступал) | "wait"
 function rankList(gyms, app) {
@@ -298,8 +327,16 @@ async function scriptPost(body) {
     body: JSON.stringify(body),
   });
   const j = await res.json();
-  if (!j.ok) throw new Error(j.error || "Ошибка сервера");
+  if (!j.ok) { const e = new Error(j.error || "Ошибка сервера"); e.conflict = !!j.conflict; e.current = j.current; throw e; }
   return j;
+}
+
+// Same comparison as the server: "9,3" == "9.300", "" only equals ""
+function sameScore(a, b) {
+  const x = String(a == null ? "" : a).trim(), y = String(b == null ? "" : b).trim();
+  if (x === "" || y === "") return x === y;
+  const nx = parseScore(x), ny = parseScore(y);
+  return nx != null && ny != null ? Math.abs(nx - ny) < 1e-9 : x === y;
 }
 
 /* ---------- demo store (localStorage, shared between tabs of one browser) ---------- */
@@ -392,8 +429,9 @@ async function loadStream(src, st) {
 global.ArtVin = {
   CONFIG, APPARATUS, ORDER, ROT_MODES,
   norm, esc, parseScore, fmtScore, parseCSV, parseSettings, parseStream, parseGender, apparatusFromText,
-  appAtRotation, autoRotation, currentRotation, groupsAt, rankList, hasScore, isFinished, rotationProgress,
-  scriptGet, scriptPost, scriptUrl,
+  appAtRotation, autoRotation, timeRotation, currentRotation, groupsAt, rankList, hasScore, isFinished, rotationProgress,
+  streamWarnings, isApparatusLabel, looksLikePerson, parseTimes,
+  scriptGet, scriptPost, scriptUrl, sameScore,
   demoInit, demoSave, randomScore, DEMO_KEY,
   loadSettings, loadStream,
 };
