@@ -93,6 +93,14 @@ select { flex: 1; min-width: 200px; }
 .login .err { color: var(--err); margin-top: 12px; min-height: 1.2em; font-size: 14px; }
 .login .demo { margin-top: 16px; font-size: 12.5px; color: var(--muted); line-height: 1.7; }
 .login .demo code { color: var(--gold-1); font-size: 13px; }
+.pick h3 { margin: 18px 0 8px; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold-2); text-align: left; }
+.pick .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pick .grid button { margin: 0; max-width: none; padding: 16px 8px; background: var(--card-2); color: var(--text);
+  border: 1px solid rgba(242,189,87,.3); font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.pick .grid button:hover { border-color: var(--gold-2); }
+.pick .grid button::before { content: "🔒"; font-size: 13px; opacity: .7; }
+.login .back { background: none; color: var(--muted); border: 0; font-size: 13px; margin-top: 12px; text-decoration: underline; }
+.login h2 small { display: block; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-top: 4px; }
 .logout { background: none; border: 1px solid rgba(255,255,255,.15); color: var(--muted); border-radius: 999px; padding: 5px 12px;
   font: 600 12px "Montserrat", sans-serif; cursor: pointer; margin-left: 10px; }
 .nokey { margin-top: 30px; padding: 18px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); line-height: 1.55; }
@@ -391,34 +399,53 @@ window.addEventListener("storage", e => { if (DEMO && e.key === A.DEMO_KEY) load
 
 /* ---------- start: code entry ---------- */
 let pollTimer = null;
+// Step 1: the judge picks an apparatus. Step 2: that apparatus asks for its code.
+// The server still decides the apparatus from the code — picking here only says which code is expected.
 function showLogin(msg) {
   $("logout").hidden = true;
   $("role").textContent = "судья";
-  $("app").innerHTML = `<form class="login" id="loginForm">
+  const btn = (g, a) => `<button type="button" data-g="${g}" data-app="${a}">${A.APPARATUS[a].short === "Брусья" && g === "F" ? "Брусья (Ж)" : A.APPARATUS[a].short}</button>`;
+  $("app").innerHTML = `<div class="login pick">
       <h2>Вход для судьи</h2>
-      <p>Введите код вашего снаряда.<br>Код выдаёт организатор; он открывает только ваш снаряд.</p>
-      <input id="code" inputmode="numeric" autocomplete="off" placeholder="0000 0000" maxlength="11" aria-label="Код судьи" />
-      <button id="loginBtn">Войти</button>
+      <p>Выберите свой снаряд. Чтобы открыть его, нужен код снаряда от организатора.</p>
+      <h3>Мальчики</h3><div class="grid">${A.ORDER.M.map(a => btn("M", a)).join("")}</div>
+      <h3>Девочки</h3><div class="grid">${A.ORDER.F.map(a => btn("F", a)).join("")}</div>
+      <div class="err">${A.esc(msg || "")}</div>
+    </div>`;
+  $("app").querySelectorAll(".grid button").forEach(b => (b.onclick = () => showCodeFor(b.dataset.g, b.dataset.app)));
+}
+function showCodeFor(g, app, msg) {
+  $("logout").hidden = true;
+  const demoCode = DEMO && Object.keys(DEMO_CODES).find(c => DEMO_CODES[c] === g + ":" + app);
+  $("app").innerHTML = `<form class="login" id="loginForm">
+      <h2>🔒 ${A.esc(A.APPARATUS[app].full)}<small>${g === "F" ? "девочки" : "мальчики"}</small></h2>
+      <p>Введите код этого снаряда.</p>
+      <input id="code" inputmode="numeric" autocomplete="off" placeholder="0000 0000" maxlength="11" aria-label="Код снаряда" />
+      <button id="loginBtn">Открыть снаряд</button>
       <div class="err" id="loginErr">${A.esc(msg || "")}</div>
-      ${DEMO ? `<div class="demo">Демо-коды:<br>${Object.entries(DEMO_CODES).map(([c, v]) => {
-        const [g, app] = v.split(":");
-        return `${g === "M" ? "М" : "Ж"} · ${A.APPARATUS[app].short}: <code>${c.slice(0, 4)} ${c.slice(4)}</code>`;
-      }).join("<br>")}</div>` : ""}
+      ${demoCode ? `<div class="demo">Демо-код: <code>${demoCode.slice(0, 4)} ${demoCode.slice(4)}</code></div>` : ""}
+      <button type="button" class="back" id="back">← другой снаряд</button>
     </form>`;
   $("code").focus();
+  $("back").onclick = () => showLogin();
   $("loginForm").onsubmit = async e => {
     e.preventDefault();
     const v = $("code").value.trim();
     if (!/^\d[\d\s-]{6,}\d$/.test(v)) { $("loginErr").textContent = "Код — 8 цифр"; return; }
     $("loginBtn").disabled = true; $("loginErr").textContent = "Проверяю…";
     KEY = v;
-    await start(true);
+    await start(true, { g, app });
   };
 }
-async function start(fromLogin) {
+async function start(fromLogin, wanted) {
   try {
     if (DEMO) A.demoInit();
     me = await whoami();
+    if (wanted && (me.gender !== wanted.g || me.app !== wanted.app)) {
+      me = null; KEY = "";
+      showCodeFor(wanted.g, wanted.app, "Это код другого снаряда");
+      return;
+    }
     try { localStorage.setItem(CODE_STORE, KEY); } catch (e) {}
     // don't leave the code in the address bar
     if (params.get("key")) history.replaceState(null, "", location.pathname + (DEMO ? "?demo=1" : ""));
@@ -432,6 +459,7 @@ async function start(fromLogin) {
   } catch (e) {
     try { localStorage.removeItem(CODE_STORE); } catch (x) {}
     KEY = "";
+    if (wanted) { showCodeFor(wanted.g, wanted.app, e.message); return; }
     showLogin(fromLogin ? e.message : (e.message === "Неверный код судьи" ? "Код больше не действует — введите новый" : e.message));
   }
 }
@@ -440,7 +468,10 @@ $("logout").onclick = () => {
   try { localStorage.removeItem(CODE_STORE); } catch (e) {}
   clearInterval(pollTimer); me = null; KEY = ""; showLogin();
 };
-if (KEY) start(false); else showLogin();
+const wantApp = params.get("app"), wantG = params.get("g") === "F" ? "F" : "M";
+if (KEY) start(false);
+else if (wantApp && A.ORDER[wantG].includes(wantApp)) showCodeFor(wantG, wantApp);
+else showLogin();
 </script>
 </body>
 </html>

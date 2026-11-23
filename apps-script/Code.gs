@@ -216,12 +216,14 @@ function showJudgeLinks() {
   var html = "<style>body{font-family:Arial;font-size:13px}td{padding:6px 8px;border-bottom:1px solid #eee}" +
     ".code{font:bold 18px monospace;letter-spacing:2px}input{width:100%;font-size:11px}</style>" +
     "<p><b>1. Ссылка для всех судей</b> (одна и та же):</p><input readonly onclick='this.select()' value='" + common + "'>" +
-    "<p><b>2. Каждому судье — только код его снаряда.</b> Судья открывает ссылку и вводит код. " +
-    "Код открывает только свой снаряд; другие снаряды с ним недоступны.</p><table>" +
+    "<p><b>2. Каждому судье — только код его снаряда.</b> Судья открывает ссылку, выбирает снаряд и вводит код " +
+    "(или сразу ссылку своего снаряда из последней колонки). Код открывает только свой снаряд.</p><table>" +
     rows.map(function (r) {
-      return "<tr><td><b>" + (r.g === "M" ? "Мальчики" : "Девочки") + "</b></td><td>" + APPS[r.app] + "</td><td class='code'>" + fmtKey_(r.key) + "</td></tr>";
+      var link = common + "&g=" + r.g + "&app=" + r.app;   // opens the code screen of this apparatus
+      return "<tr><td><b>" + (r.g === "M" ? "Мальчики" : "Девочки") + "</b></td><td>" + APPS[r.app] + "</td><td class='code'>" + fmtKey_(r.key) +
+        "</td><td><input readonly onclick='this.select()' value='" + link + "'></td></tr>";
     }).join("") + "</table><p style='color:#777'>Если код попал не тому — меню ArtVin Cup → «Создать новые коды».</p>";
-  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(620).setHeight(600), "Коды судей");
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(820).setHeight(620), "Коды судей");
 }
 function setupSettings() {
   var ss = SpreadsheetApp.getActive();
