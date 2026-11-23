@@ -115,10 +115,11 @@ let me = null;              // { gender, app }
 let settings = [], current = null, stream = null, info = null;
 let showAll = false;
 let lastRot = null, newGroupUntil = 0;
+// One stream runs at a time: judges always follow the stream marked «На экране».
+// A manual pick lasts only until the page is reopened, so nobody is left on yesterday's stream.
 let streamChoice = "auto";
-try { const u = JSON.parse(localStorage.getItem(UI)) || {}; showAll = !!u.showAll; streamChoice = u.stream || "auto"; } catch (e) {}
-if (params.get("stream")) streamChoice = params.get("stream");   // organiser can pin a judge to one stream
-const saveUI = () => { try { localStorage.setItem(UI, JSON.stringify({ showAll, stream: streamChoice })); } catch (e) {} };
+try { const u = JSON.parse(localStorage.getItem(UI)) || {}; showAll = !!u.showAll; } catch (e) {}
+const saveUI = () => { try { localStorage.setItem(UI, JSON.stringify({ showAll })); } catch (e) {} };
 
 /* ---------- identity (the key decides the apparatus; it cannot be changed on this page) ---------- */
 async function whoami() {
