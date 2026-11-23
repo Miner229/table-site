@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="theme-color" content="#070605" />
+<meta name="theme-color" content="#ffffff" />
 <link rel="icon" href="logo-emblem.png" />
 <title>ArtVin Cup — результаты</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -125,7 +125,7 @@ main {
 .tbl { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .thead, .row {
   display: grid; align-items: stretch; font-size: var(--fs);
-  grid-template-columns: calc(var(--fs) * 2.2) minmax(0, 1fr) minmax(0, calc(var(--fs) * 6.5)) calc(var(--fs) * 4.6);
+  grid-template-columns: calc(var(--fs) * 2.2) minmax(0, 1fr) calc(var(--fs) * 4.6);
 }
 .thead {
   font-size: calc(var(--fs) * .4); font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--gold-2);
@@ -135,14 +135,13 @@ main {
 .thead span { padding: .75em .9em; white-space: nowrap; }
 .thead span:first-child, .thead span:last-child { text-align: center; padding-left: .3em; padding-right: .3em; }
 .thead span.c-name { padding-left: calc(var(--fs) * .5); }
-.thead span.c-club { padding-left: 0; }
 
-.table { flex: 1; min-height: 0; position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 0;
-  border-left: 1px solid rgba(242,189,87,.2); border-right: 1px solid rgba(242,189,87,.2); }
+.table { flex: 1; min-height: 0; position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 0; }
+.table .row { border-left: 1px solid rgba(242,189,87,.2); border-right: 1px solid rgba(242,189,87,.2); }
 .table.fade { animation: fade .45s ease; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
-.row { flex-shrink: 0; position: relative; line-height: 1.5; background: #0e0c09; border-bottom: 1px solid rgba(255,255,255,.07); }
+.row { flex-shrink: 0; min-height: var(--row-h, 0px); position: relative; line-height: 1.5; background: #0e0c09; border-bottom: 1px solid rgba(255,255,255,.07); }
 .row:nth-child(even) { background: #16130f; }
 .row:last-child { border-bottom: 1px solid rgba(242,189,87,.25); border-radius: 0 0 10px 10px; overflow: hidden; }
 .row > span { display: flex; align-items: center; min-width: 0; }
@@ -154,8 +153,6 @@ main {
 .row .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .name b { font-weight: 800; letter-spacing: .02em; }
 .row .name i { font-style: normal; font-weight: 500; }
-.row .club { font-size: .48em; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; padding-right: .8em; }
-.row .club span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .score {
   justify-content: center; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .01em;
   background: rgba(242,189,87,.1); color: var(--gold-1); border-left: 1px solid rgba(242,189,87,.25);
@@ -167,7 +164,6 @@ main {
 
 .row.p1 { background: var(--gold-grad); color: #1a1205; border-bottom-color: rgba(0,0,0,.25); }
 .row.p1 .place { background: #1a1205; color: var(--gold-2); }
-.row.p1 .club { color: rgba(26,18,5,.72); }
 .row.p1 .score { background: rgba(26,18,5,.14); color: #1a1205; border-left-color: rgba(26,18,5,.25); font-weight: 900; }
 
 .row.fresh::after {
@@ -280,13 +276,10 @@ body.pointer #gear, #gear:focus { opacity: 1; }
   .table { overflow: visible; }
   .thead, .row { grid-template-columns: calc(var(--fs) * 2) minmax(0, 1fr) calc(var(--fs) * 4.3); }
   .thead { font-size: 10px; }
-  .thead .c-club { display: none; }
-  .row { grid-template-areas: "p n s" "p c s"; line-height: 1.3; }
-  .row .place { grid-area: p; grid-row: 1 / 3; }
-  .row .name { grid-area: n; padding-top: .45em; white-space: normal; }
+  .row { line-height: 1.3; }
+  .row .name { padding-top: .5em; padding-bottom: .5em; white-space: normal; }
   .row .name span { white-space: normal; }
-  .row .club { grid-area: c; font-size: .62em; padding: 0 .4em .5em .65em; }
-  .row .score { grid-area: s; grid-row: 1 / 3; font-size: 1.05em; }
+  .row .score { font-size: 1.05em; }
   .row.wait .score, .row.dns .score { font-size: .58em; }
   .demo-badge { display: none; }
   .demo-bar { bottom: 8px; width: auto; max-width: none; left: 8px; right: 8px; gap: 6px; padding: 6px; }
@@ -296,6 +289,52 @@ body.pointer #gear, #gear:focus { opacity: 1; }
   .demo-bar button, .demo-bar a { padding: 7px 9px; font-size: 12px; }
   #gear { opacity: .8; }
   #panel { left: 10px; right: 10px; width: auto; }
+}
+/* ---------- light theme (default): white background, black text ---------- */
+body.light { --bg: #ffffff; --text: #111111; --muted: #6f6758; background: #fff; color: #111; }
+body.light .bg { background:
+    radial-gradient(1200px 500px at 85% 115%, rgba(217,154,54,.12), transparent 60%),
+    radial-gradient(900px 400px at -10% -20%, rgba(217,154,54,.08), transparent 60%), #fff; }
+body.light .bg svg { opacity: .35; }
+body.light header { border-image: linear-gradient(90deg, transparent, rgba(207,144,47,.8), transparent) 1; }
+body.light .brand img { filter: invert(1); }
+body.light .wordmark .artvin { color: #111; text-shadow: none; }
+body.light .wordmark .cup { background: linear-gradient(100deg, #c9932f, #a86f22 60%, #7d5418); -webkit-background-clip: text; background-clip: text; filter: none; }
+body.light .memorial { color: #333; border-left-color: rgba(207,144,47,.6); }
+body.light .memorial b { color: #8a5a14; }
+body.light .stream select { color: #111; }
+body.light .stream select option { background: #fff; color: #111; }
+body.light .rot { color: #8a5a14; }
+body.light nav.apps button { color: #555; background: #f5f2eb; border-color: #e3d9c4; }
+body.light nav.apps button.on { color: #1a1205; background: var(--gold-grad); border-color: transparent; box-shadow: 0 4px 14px rgba(207,144,47,.35); }
+body.light .app-head h2 { background: none; color: #111; -webkit-text-fill-color: #111; }
+body.light .app-head .page { color: #555; }
+body.light .app-head .progress { background: #ece6d9; }
+body.light .thead { color: #333; background: #f3efe6; border-color: #ddd2bb; border-bottom-color: var(--gold-3); }
+body.light .table .row { border-left-color: #e6dfcf; border-right-color: #e6dfcf; }
+body.light .row { background: #fff; color: #111; border-bottom-color: #ebe5d9; }
+body.light .row:nth-child(even) { background: #f8f6f1; }
+body.light .row:last-child { border-bottom-color: #ddd2bb; }
+body.light .row .place { background: #eee8db; color: #111; }
+body.light .row .place:empty { background: transparent; }
+body.light .row .score { background: #fbf4e3; color: #111; border-left-color: #ecdfc0; }
+body.light .row.wait .score, body.light .row.dns .score { color: #8a8273; background: transparent; }
+body.light .row.wait .name, body.light .row.dns .name { color: #555; }
+body.light .row.p1 { background: var(--gold-grad); color: #1a1205; }
+body.light .row.p1 .place { background: #1a1205; color: var(--gold-2); }
+body.light .row.p1 .score { background: rgba(26,18,5,.12); color: #1a1205; }
+body.light .row.fresh::after { box-shadow: inset 0 0 0 3px var(--gold-3); background: rgba(242,189,87,.16); }
+body.light #rotOverlay { background: radial-gradient(ellipse at center, rgba(255,250,240,.98), rgba(255,255,255,.99) 70%); }
+body.light #rotOverlay .moves { color: #111; }
+body.light #rotOverlay .moves i { color: var(--gold-3); }
+body.light #rotOverlay .moves b { color: #8a5a14; }
+body.light #rotOverlay h1 { background: linear-gradient(100deg, #c9932f, #a86f22 60%, #7d5418); -webkit-background-clip: text; background-clip: text; }
+body.light .empty-msg { color: #555; }
+body.light .empty-msg b { color: #8a5a14; }
+body.light .empty-msg a { color: #8a5a14; }
+body.light #gear { background: #fff; color: #8a5a14; border-color: #ddd2bb; }
+@media (max-width: 899px) {
+  body.light nav.apps { background: rgba(255,255,255,.95); }
 }
 </style>
 </head>
@@ -334,7 +373,7 @@ body.pointer #gear, #gear:focus { opacity: 1; }
     <div class="progress"><i id="prog"></i></div>
   </div>
   <div class="tbl">
-    <div class="thead"><span id="thPlace"></span><span class="c-name">Гимнаст</span><span class="c-club">Клуб / регион</span><span>Оценка</span></div>
+    <div class="thead"><span id="thPlace"></span><span class="c-name">Гимнаст</span><span>Оценка</span></div>
     <div class="table" id="table"></div>
   </div>
 </main>
@@ -372,8 +411,11 @@ body.pointer #gear, #gear:focus { opacity: 1; }
   <div class="hint" id="rotHint"></div>
   <hr>
   <label>Размер шрифта, px <input type="number" id="pFs" min="16" max="120" step="1" /></label>
-  <label>Минимум участников на экране <input type="number" id="pRows" min="3" max="40" step="1" /></label>
+  <label>Страниц на снаряд <input type="number" id="pPages" min="1" max="4" step="1" /></label>
   <div class="hint" id="fitHint"></div>
+  <label>Тема
+    <select id="pTheme"><option value="light">Светлая</option><option value="dark">Тёмная</option></select>
+  </label>
   <label>Секунд на экран <input type="number" id="pSec" min="4" max="120" step="1" /></label>
   <label>Пауза перед сменой ротации, сек <input type="number" id="pHold" min="0" max="600" step="5" /></label>
   <div class="hint">Пауза — только для авто-режима: после последней оценки табло ещё показывает старую ротацию, чтобы зрители увидели результат.</div>
@@ -401,15 +443,16 @@ const params = new URLSearchParams(location.search);
 const STORE = "artvin-display-v2";
 
 /* ---------- state ---------- */
-const saved = (() => { try { const v = JSON.parse(localStorage.getItem(STORE)) || {}; delete v.places; return v; } catch (e) { return {}; } })();
-const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, rows: 10, anim: true, sec: 12, hold: 60, sim: true }, saved);
+const saved = (() => { try { const v = JSON.parse(localStorage.getItem(STORE)) || {}; delete v.places; delete v.rows; return v; } catch (e) { return {}; } })();
+const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, pages: 2, theme: "light", anim: true, sec: 12, hold: 60, sim: true }, saved);
 if (params.get("src")) state.src = params.get("src") === "demo" ? "demo" : "sheet";
 if (params.get("demo")) state.src = "demo";
 if (params.get("stream")) state.stream = params.get("stream");
 if (params.get("rot")) state.mode = { manual: "manual", auto: "auto", time: "time" }[params.get("rot")] || "";
 if (params.get("fs")) state.fs = +params.get("fs") || state.fs;
 if (params.get("sec")) state.sec = +params.get("sec") || state.sec;
-if (params.get("rows")) state.rows = Math.max(3, +params.get("rows") || state.rows);
+if (params.get("pages")) state.pages = Math.max(1, Math.min(4, +params.get("pages") || 2));
+if (params.get("theme")) state.theme = params.get("theme") === "dark" ? "dark" : "light";
 function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
 
 let settings = [];        // streams from «Настройки»
@@ -485,43 +528,53 @@ function computeRotation() {
 }
 
 /* ---------- steps (apparatus × page) ---------- */
-// Font size: the chosen size (42 px), reduced only as much as needed so that
-// at least `state.rows` (10) participants fit on one screen without scrolling.
-let fitSig = "", fitted = null;
+// Each apparatus table is split into `state.pages` (2) pages that switch automatically.
+// Rows per page = largest group ÷ pages (10 → 5). Font: the chosen size (42 px), reduced only if
+// even that many rows would not fit; rows are stretched to fill the screen height.
+let fitSig = "", fitted = null, targetRows = 5;
 function fitFont() {
   const root = document.documentElement.style;
-  if (isPhone()) { root.setProperty("--fs", ""); fitSig = ""; return; }
-  const sig = `${innerWidth}x${innerHeight}|${state.fs}|${state.rows}`;
-  if (sig === fitSig) { root.setProperty("--fs", fitted + "px"); return; }
-  let f = state.fs;
-  for (; f > 14; f--) {
-    root.setProperty("--fs", f + "px");
-    if (measureRows() >= state.rows) break;
+  if (isPhone()) { root.setProperty("--fs", ""); root.setProperty("--row-h", ""); fitSig = ""; return; }
+  const sig = `${innerWidth}x${innerHeight}|${state.fs}|${targetRows}`;
+  if (sig !== fitSig) {
+    let f = state.fs;
+    for (; f > 14; f--) {
+      root.setProperty("--fs", f + "px");
+      if (measureRows() >= targetRows) break;
+    }
+    fitted = f; fitSig = sig;
   }
-  root.setProperty("--fs", f + "px");
-  fitted = f; fitSig = sig;
+  root.setProperty("--fs", fitted + "px");
+  // stretch rows so the page fills the screen (at most 2× their natural height)
+  const t = $("table"), nat = naturalRowHeight();
+  root.setProperty("--row-h", Math.floor(Math.min(t.clientHeight / targetRows, nat * 2)) + "px");
 }
 function rowsPerPage() {
   if (isPhone()) return 1e9;
   fitFont();
   let n = measureRows();
-  if (n < state.rows && fitted > 14) { fitSig = ""; fitFont(); n = measureRows(); }   // layout changed since the last fit
-  return n;
+  if (n < targetRows && fitted > 14) { fitSig = ""; fitFont(); n = measureRows(); }   // layout changed since the last fit
+  return Math.max(1, Math.min(n, targetRows));
 }
-function measureRows() {
+function naturalRowHeight() {
   const t = $("table");
   const probe = document.createElement("div");
   probe.className = "row";
-  probe.innerHTML = '<span class="place">1</span><span class="name"><span><b>AG</b><i>g</i></span></span><span class="club"><span>x</span></span><span class="score">10,000</span>';
+  probe.style.minHeight = "0";
+  probe.innerHTML = '<span class="place">1</span><span class="name"><span><b>AG</b><i>g</i></span></span><span class="score">10,000</span>';
   t.appendChild(probe);
   const h = probe.getBoundingClientRect().height;
   probe.remove();
-  const gap = parseFloat(getComputedStyle(t).rowGap) || 0;
-  return Math.max(3, Math.floor((t.clientHeight + gap) / (h + gap)));
+  return h;
+}
+function measureRows() {
+  return Math.max(1, Math.floor($("table").clientHeight / naturalRowHeight()));
 }
 
 function buildSteps() {
   const groups = A.groupsAt(stream, rotInfo.shown);
+  const biggest = Math.max(1, ...stream.apps.map(a => groups[a].length));
+  targetRows = Math.max(1, Math.ceil(biggest / state.pages));
   const per = rowsPerPage();
   const cur = steps[stepIdx];
   steps = [];
@@ -539,7 +592,13 @@ function buildSteps() {
 }
 
 /* ---------- rendering ---------- */
+function applyTheme() {
+  document.body.classList.toggle("light", state.theme !== "dark");
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.content = state.theme === "dark" ? "#070605" : "#ffffff";
+}
 function render(advanced) {
+  applyTheme();
   fitFont();
   $("demoBadge").hidden = true;
   $("demoBar").hidden = state.src !== "demo";
@@ -608,7 +667,6 @@ function render(advanced) {
     return `<div class="${cls.join(" ")}" data-k="${it.g.idx}">
       <span class="place">${place}</span>
       <span class="name"><span>${fmtName(it.g.name)}</span></span>
-      <span class="club"><span>${A.esc(it.g.club)}</span></span>
       <span class="score">${score}</span>
     </div>`;
   }).join("");
@@ -709,9 +767,10 @@ function syncPanel() {
   $("pSrc").value = state.src;
   $("pMode").value = state.mode;
   $("pFs").value = state.fs;
-  $("pRows").value = state.rows;
+  $("pPages").value = state.pages;
+  $("pTheme").value = state.theme;
   $("fitHint").textContent = !isPhone() && fitted && fitted < state.fs
-    ? `Экран невысокий: шрифт уменьшен до ${fitted} px, чтобы поместилось ${state.rows}.` : "";
+    ? `Экран невысокий: шрифт уменьшен до ${fitted} px, чтобы поместилось ${targetRows} строк.` : "";
   $("warnBox").innerHTML = stream ? A.streamWarnings(stream).map(w => `<div class="hint" style="color:#ff9b8b">⚠ ${A.esc(w)}</div>`).join("") : "";
   $("pSec").value = state.sec;
   $("pHold").value = state.hold;
@@ -729,7 +788,8 @@ function syncPanel() {
   if (state.stream !== "auto") tvParams.set("stream", state.stream);
   if (state.mode) tvParams.set("rot", state.mode);
   if (state.fs !== 42) tvParams.set("fs", state.fs);
-  if (state.rows !== 10) tvParams.set("rows", state.rows);
+  if (state.pages !== 2) tvParams.set("pages", state.pages);
+  if (state.theme !== "light") tvParams.set("theme", state.theme);
   const q = tvParams.toString();
   $("tvLink").textContent = base + (q ? "?" + q : "");
   $("secLink").href = "secretary.html" + (state.src === "demo" ? "?src=demo" : "");
@@ -761,7 +821,8 @@ document.addEventListener("mousemove", () => {
 $("pSrc").onchange = e => setState({ src: e.target.value, stream: "auto" }, true);
 $("pMode").onchange = e => setState({ mode: e.target.value }, true);
 $("pFs").onchange = e => { setState({ fs: Math.max(16, Math.min(120, +e.target.value || 42)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
-$("pRows").onchange = e => { setState({ rows: Math.max(3, Math.min(40, +e.target.value || 10)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
+$("pPages").onchange = e => { setState({ pages: Math.max(1, Math.min(4, +e.target.value || 2)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
+$("pTheme").onchange = e => { setState({ theme: e.target.value }); applyTheme(); };
 $("pSec").onchange = e => { setState({ sec: Math.max(4, +e.target.value || 12) }); startCycle(); };
 $("pHold").onchange = e => setState({ hold: Math.max(0, +e.target.value || 0) }, true);
 $("pAnim").onchange = e => setState({ anim: e.target.checked });
