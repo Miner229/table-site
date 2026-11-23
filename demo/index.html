@@ -93,7 +93,7 @@ nav.apps {
 }
 nav.apps button {
   flex: 1 1 0; min-width: 0;
-  font: 700 17px/1 "Montserrat", sans-serif; letter-spacing: .14em; text-transform: uppercase;
+  font: 700 clamp(12px, 1.05vw, 17px)/1 "Montserrat", sans-serif; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); background: rgba(255,255,255,.03);
   border: 1px solid rgba(242,189,87,.18); border-radius: 999px; padding: 10px 12px; cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: .3s;
@@ -162,14 +162,13 @@ main {
 }
 .row.wait .score, .row.dns .score { font-size: .42em; font-weight: 600; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; background: transparent; }
 .row.wait .place, .row.dns .place { background: #1a1712; color: var(--muted); }
+.row .place:empty { background: transparent; }
 .row.wait .name, .row.dns .name { color: #bdb4a4; }
 
 .row.p1 { background: var(--gold-grad); color: #1a1205; border-bottom-color: rgba(0,0,0,.25); }
 .row.p1 .place { background: #1a1205; color: var(--gold-2); }
 .row.p1 .club { color: rgba(26,18,5,.72); }
 .row.p1 .score { background: rgba(26,18,5,.14); color: #1a1205; border-left-color: rgba(26,18,5,.25); font-weight: 900; }
-.row.p2 .place { background: var(--silver); color: #1d1f23; }
-.row.p3 .place { background: var(--bronze); color: #24140a; }
 
 .row.fresh::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -307,7 +306,7 @@ body.pointer #gear, #gear:focus { opacity: 1; }
     <div class="progress"><i id="prog"></i></div>
   </div>
   <div class="tbl">
-    <div class="thead"><span>М</span><span class="c-name">Гимнаст</span><span class="c-club">Клуб / регион</span><span>Оценка</span></div>
+    <div class="thead"><span id="thPlace"></span><span class="c-name">Гимнаст</span><span class="c-club">Клуб / регион</span><span>Оценка</span></div>
     <div class="table" id="table"></div>
   </div>
 </main>
@@ -317,6 +316,7 @@ body.pointer #gear, #gear:focus { opacity: 1; }
 <button id="gear" title="Настройки (S)">⚙</button>
 <aside id="panel">
   <h3>Настройки экрана</h3>
+  <div id="warnBox"></div>
   <label>Данные
     <select id="pSrc"><option value="sheet">Google-таблица</option><option value="demo">Демо</option></select>
   </label>
@@ -334,6 +334,8 @@ body.pointer #gear, #gear:focus { opacity: 1; }
   <div class="hint" id="rotHint"></div>
   <hr>
   <label>Размер шрифта, px <input type="number" id="pFs" min="16" max="120" step="1" /></label>
+  <label>Минимум участников на экране <input type="number" id="pRows" min="3" max="40" step="1" /></label>
+  <div class="hint" id="fitHint"></div>
   <label>Секунд на экран <input type="number" id="pSec" min="4" max="120" step="1" /></label>
   <label>Пауза перед сменой ротации, сек <input type="number" id="pHold" min="0" max="600" step="5" /></label>
   <div class="hint">Пауза — только для авто-режима: после последней оценки табло ещё показывает старую ротацию, чтобы зрители увидели результат.</div>
@@ -357,14 +359,15 @@ const params = new URLSearchParams(location.search);
 const STORE = "artvin-display-v2";
 
 /* ---------- state ---------- */
-const saved = (() => { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } })();
-const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, sec: 12, hold: 60, sim: true }, saved);
+const saved = (() => { try { const v = JSON.parse(localStorage.getItem(STORE)) || {}; delete v.places; return v; } catch (e) { return {}; } })();
+const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, rows: 10, sec: 12, hold: 60, sim: true }, saved);
 if (params.get("src")) state.src = params.get("src") === "demo" ? "demo" : "sheet";
 if (params.get("demo")) state.src = "demo";
 if (params.get("stream")) state.stream = params.get("stream");
 if (params.get("rot")) state.mode = { manual: "manual", auto: "auto", time: "time" }[params.get("rot")] || "";
 if (params.get("fs")) state.fs = +params.get("fs") || state.fs;
 if (params.get("sec")) state.sec = +params.get("sec") || state.sec;
+if (params.get("rows")) state.rows = Math.max(3, +params.get("rows") || state.rows);
 function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
 
 let settings = [];        // streams from «Настройки»
@@ -437,8 +440,28 @@ function computeRotation() {
 }
 
 /* ---------- steps (apparatus × page) ---------- */
+// Font size: the chosen size (42 px), reduced only as much as needed so that
+// at least `state.rows` (10) participants fit on one screen without scrolling.
+let fitSig = "", fitted = null;
+function fitFont() {
+  const root = document.documentElement.style;
+  if (isPhone()) { root.setProperty("--fs", ""); fitSig = ""; return; }
+  const sig = `${innerWidth}x${innerHeight}|${state.fs}|${state.rows}`;
+  if (sig === fitSig) { root.setProperty("--fs", fitted + "px"); return; }
+  let f = state.fs;
+  for (; f > 14; f--) {
+    root.setProperty("--fs", f + "px");
+    if (measureRows() >= state.rows) break;
+  }
+  root.setProperty("--fs", f + "px");
+  fitted = f; fitSig = sig;
+}
 function rowsPerPage() {
   if (isPhone()) return 1e9;
+  fitFont();
+  return measureRows();
+}
+function measureRows() {
   const t = $("table");
   const probe = document.createElement("div");
   probe.className = "row";
@@ -470,7 +493,7 @@ function buildSteps() {
 
 /* ---------- rendering ---------- */
 function render(advanced) {
-  document.documentElement.style.setProperty("--fs", isPhone() ? "" : state.fs + "px");
+  fitFont();
   $("demoBadge").hidden = state.src !== "demo";
   $("demoBox").style.display = state.src === "demo" ? "" : "none";
 
@@ -528,9 +551,10 @@ function render(advanced) {
 
   t.innerHTML = slice.map(it => {
     const cls = ["row", it.status];
-    if (it.status === "scored" && it.place <= 3) cls.push("p" + it.place);
+    if (it.status === "scored" && it.place === 1) cls.push("p1");
     if (fresh.has(it.g.idx)) cls.push("fresh");
-    const place = it.status === "scored" ? it.place : "–";
+    // ranking order is unchanged; only the number shown is simplified
+    const place = it.status === "scored" && it.place === 1 ? 1 : "";   // only 1st place is shown
     const score = it.status === "scored" ? A.fmtScore(it.score) : it.status === "dns" ? "н/я" : "ожидает";
     return `<div class="${cls.join(" ")}" data-k="${it.g.idx}">
       <span class="place">${place}</span>
@@ -632,6 +656,10 @@ function syncPanel() {
   $("pSrc").value = state.src;
   $("pMode").value = state.mode;
   $("pFs").value = state.fs;
+  $("pRows").value = state.rows;
+  $("fitHint").textContent = !isPhone() && fitted && fitted < state.fs
+    ? `Экран невысокий: шрифт уменьшен до ${fitted} px, чтобы поместилось ${state.rows}.` : "";
+  $("warnBox").innerHTML = stream ? A.streamWarnings(stream).map(w => `<div class="hint" style="color:#ff9b8b">⚠ ${A.esc(w)}</div>`).join("") : "";
   $("pSec").value = state.sec;
   $("pHold").value = state.hold;
   $("pSim").checked = state.sim;
@@ -648,6 +676,7 @@ function syncPanel() {
   if (state.stream !== "auto") tvParams.set("stream", state.stream);
   if (state.mode) tvParams.set("rot", state.mode);
   if (state.fs !== 42) tvParams.set("fs", state.fs);
+  if (state.rows !== 10) tvParams.set("rows", state.rows);
   const q = tvParams.toString();
   $("tvLink").textContent = base + (q ? "?" + q : "");
   $("secLink").href = "secretary.html" + (state.src === "demo" ? "?src=demo" : "");
@@ -674,7 +703,8 @@ document.addEventListener("mousemove", () => {
 });
 $("pSrc").onchange = e => setState({ src: e.target.value, stream: "auto" }, true);
 $("pMode").onchange = e => setState({ mode: e.target.value }, true);
-$("pFs").onchange = e => setState({ fs: Math.max(16, Math.min(120, +e.target.value || 42)) });
+$("pFs").onchange = e => { setState({ fs: Math.max(16, Math.min(120, +e.target.value || 42)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
+$("pRows").onchange = e => { setState({ rows: Math.max(3, Math.min(40, +e.target.value || 10)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
 $("pSec").onchange = e => { setState({ sec: Math.max(4, +e.target.value || 12) }); startCycle(); };
 $("pHold").onchange = e => setState({ hold: Math.max(0, +e.target.value || 0) }, true);
 $("pSim").onchange = e => setState({ sim: e.target.checked });
@@ -703,6 +733,7 @@ let resizeT;
 window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (stream) { lastKey = ""; buildSteps(); render(false); } }, 200); });
 
 /* ---------- start ---------- */
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitSig = ""; if (stream) { lastKey = ""; buildSteps(); render(false); } });
 (async () => {
   if (state.src === "demo") A.demoInit();
   await refresh();

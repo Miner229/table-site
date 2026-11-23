@@ -4,11 +4,11 @@
  * Вставить в Google-таблицу: Расширения → Apps Script → заменить содержимое Code.gs этим файлом.
  * Затем: Начать развертывание → Новое развертывание → тип «Веб-приложение»,
  *        «Запуск от имени: Я», «Доступ: Все» → Развернуть.
- * После этого в таблице появится меню «ArtVin Cup» → «Ссылки судей».
+ * После этого в таблице появится меню «ArtVin Cup» → «Коды судей».
  *
- * Защита: каждая ссылка судьи содержит ключ, привязанный к ОДНОМУ снаряду (и полу).
- * Снаряд определяется только по ключу на сервере — страница судьи не может выбрать другой снаряд.
- * Ключи хранятся в свойствах скрипта, а не в таблице (таблица открыта для просмотра).
+ * Защита: у каждого снаряда свой 8-значный код. Снаряд определяется только по коду на сервере —
+ * страница судьи не может выбрать другой снаряд. Коды хранятся в свойствах скрипта, а не в таблице
+ * (таблица открыта для просмотра). После неверного кода — пауза 1,5 с, чтобы коды нельзя было подобрать.
  */
 
 var JUDGE_PAGE = "https://miner229.github.io/table-site/demo/judge.html";
@@ -47,9 +47,14 @@ function keys_() {
   var raw = PropertiesService.getScriptProperties().getProperty("JUDGE_KEYS");
   return raw ? JSON.parse(raw) : {};
 }
+// Judge code: 8 digits, may be typed with spaces/dashes ("4827 1935").
+function normKey_(key) { return String(key || "").replace(/[\s-]/g, ""); }
 function judge_(key) {
-  var v = keys_()[String(key || "")];
-  if (!v) throw new Error("Ссылка судьи недействительна");
+  var v = keys_()[normKey_(key)];
+  if (!v) {
+    Utilities.sleep(1500);   // slows down guessing codes
+    throw new Error("Неверный код судьи");
+  }
   var p = v.split(":");
   return { gender: p[0], app: p[1] };
 }
@@ -129,6 +134,12 @@ function doPost(e) {
 
     var cell = sh.getRange(row, col + 1);
     var old = cell.getDisplayValue();
+    // Two devices on the same apparatus: refuse to overwrite a score the judge has not seen.
+    // b.expected = the value the judge's page showed before the change ("" = empty).
+    if (b.expected !== undefined && !sameScore_(old, b.expected)) {
+      return json_({ ok: false, conflict: true, current: old, error: "Оценку уже изменили на другом устройстве: " + (old || "пусто") });
+    }
+    if (sameScore_(old, value === "" ? "" : String(value))) return json_({ ok: true, unchanged: true });
     if (value === "") cell.clearContent(); else cell.setValue(value);
     SpreadsheetApp.flush();
     log_([new Date(), APPS[j.app] + (j.gender === "F" ? " (Ж)" : " (М)"), b.tab, row, b.name, old, value === "" ? "удалено" : value]);
@@ -138,6 +149,13 @@ function doPost(e) {
   } finally {
     try { lock.releaseLock(); } catch (x) {}
   }
+}
+
+function sameScore_(a, b) {
+  var x = String(a == null ? "" : a).trim().replace(",", "."), y = String(b == null ? "" : b).trim().replace(",", ".");
+  if (x === "" || y === "") return x === y;
+  var nx = Number(x), ny = Number(y);
+  return isFinite(nx) && isFinite(ny) ? Math.abs(nx - ny) < 1e-9 : x === y;
 }
 
 function log_(row) {
@@ -154,27 +172,31 @@ function log_(row) {
 /* ---------------- menu for the organiser ---------------- */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu("ArtVin Cup")
-    .addItem("Ссылки судей", "showJudgeLinks")
-    .addItem("Создать новые ключи (старые ссылки перестанут работать)", "resetKeys")
+    .addItem("Коды судей", "showJudgeLinks")
+    .addItem("Создать новые коды (старые перестанут работать)", "resetKeys")
     .addSeparator()
     .addItem("Подготовить вкладку «Настройки»", "setupSettings")
     .addToUi();
 }
 
 function randomKey_() {
-  var abc = "abcdefghjkmnpqrstuvwxyz23456789", s = "";
-  for (var i = 0; i < 12; i++) s += abc.charAt(Math.floor(Math.random() * abc.length));
-  return s;
+  var s = "";
+  for (var i = 0; i < 8; i++) s += Math.floor(Math.random() * 10);
+  return s.charAt(0) === "0" ? "1" + s.slice(1) : s;
 }
+function fmtKey_(k) { return k.slice(0, 4) + " " + k.slice(4); }
 function makeKeys_() {
   var k = {};
-  ["M", "F"].forEach(function (g) { ORDER[g].forEach(function (a) { k[randomKey_()] = g + ":" + a; }); });
+  ["M", "F"].forEach(function (g) { ORDER[g].forEach(function (a) {
+    var key; do { key = randomKey_(); } while (k[key]);
+    k[key] = g + ":" + a;
+  }); });
   PropertiesService.getScriptProperties().setProperty("JUDGE_KEYS", JSON.stringify(k));
   return k;
 }
 function resetKeys() {
   var ui = SpreadsheetApp.getUi();
-  if (ui.alert("Создать новые ключи?", "Все старые ссылки судей перестанут работать.", ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  if (ui.alert("Создать новые коды?", "Все старые коды и ссылки судей перестанут работать.", ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
   makeKeys_();
   showJudgeLinks();
 }
@@ -185,17 +207,21 @@ function showJudgeLinks() {
     return;
   }
   var k = keys_();
-  if (!Object.keys(k).length) k = makeKeys_();
+  if (!Object.keys(k).length || !/^\d{8}$/.test(Object.keys(k)[0])) k = makeKeys_();
+  var common = JUDGE_PAGE + "?api=" + encodeURIComponent(api);
   var rows = Object.keys(k).map(function (key) {
     var p = k[key].split(":");
-    return { g: p[0], app: p[1], url: JUDGE_PAGE + "?key=" + key + "&api=" + encodeURIComponent(api) };
+    return { g: p[0], app: p[1], key: key };
   }).sort(function (a, b) { return a.g === b.g ? ORDER[a.g].indexOf(a.app) - ORDER[b.g].indexOf(b.app) : (a.g === "M" ? -1 : 1); });
-  var html = "<style>body{font-family:Arial;font-size:13px}td{padding:6px;border-bottom:1px solid #eee;vertical-align:top}input{width:100%;font-size:11px}</style>" +
-    "<p>Отправьте каждому судье только его ссылку. Ссылка работает только для своего снаряда.</p><table>" +
+  var html = "<style>body{font-family:Arial;font-size:13px}td{padding:6px 8px;border-bottom:1px solid #eee}" +
+    ".code{font:bold 18px monospace;letter-spacing:2px}input{width:100%;font-size:11px}</style>" +
+    "<p><b>1. Ссылка для всех судей</b> (одна и та же):</p><input readonly onclick='this.select()' value='" + common + "'>" +
+    "<p><b>2. Каждому судье — только код его снаряда.</b> Судья открывает ссылку и вводит код. " +
+    "Код открывает только свой снаряд; другие снаряды с ним недоступны.</p><table>" +
     rows.map(function (r) {
-      return "<tr><td><b>" + (r.g === "M" ? "Мальчики" : "Девочки") + "</b><br>" + APPS[r.app] + "</td><td><input readonly onclick='this.select()' value='" + r.url + "'></td></tr>";
-    }).join("") + "</table>";
-  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(720).setHeight(560), "Ссылки судей");
+      return "<tr><td><b>" + (r.g === "M" ? "Мальчики" : "Девочки") + "</b></td><td>" + APPS[r.app] + "</td><td class='code'>" + fmtKey_(r.key) + "</td></tr>";
+    }).join("") + "</table><p style='color:#777'>Если код попал не тому — меню ArtVin Cup → «Создать новые коды».</p>";
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(620).setHeight(600), "Коды судей");
 }
 function setupSettings() {
   var ss = SpreadsheetApp.getActive();
