@@ -212,6 +212,37 @@ nav.apps button.done .cnt::after { content: "✓"; margin-left: .15em; }
 .empty-msg { margin: auto; text-align: center; color: var(--muted); font-size: 26px; font-weight: 600; letter-spacing: .06em; }
 .empty-msg b { display: block; color: var(--gold-2); font-size: 34px; margin-bottom: 10px; }
 
+/* ---------- organiser: stream for judges (hidden but always reachable) ---------- */
+#streamBtn {
+  position: fixed; left: 12px; bottom: 10px; z-index: 20;
+  font: 700 12px "Montserrat", sans-serif; letter-spacing: .14em; text-transform: uppercase;
+  padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  background: transparent; color: var(--muted); border: 1px solid rgba(157,148,131,.35);
+  opacity: .28; transition: opacity .3s;
+}
+#streamBtn:hover, #streamBtn:focus, body.pointer #streamBtn { opacity: 1; }
+#ctl { position: fixed; inset: 0; z-index: 40; display: none; place-items: center; background: rgba(0,0,0,.45); }
+#ctl.open { display: grid; }
+#ctl .card {
+  width: min(460px, calc(100% - 24px)); max-height: calc(100% - 40px); overflow: auto;
+  background: #fff; color: #111; border-radius: 18px; padding: 20px 20px 16px; box-shadow: 0 30px 80px rgba(0,0,0,.4);
+  font: 500 15px "Montserrat", sans-serif;
+}
+#ctl h3 { margin: 0 0 4px; font-size: 20px; }
+#ctl p { margin: 0 0 14px; color: #666; font-size: 13.5px; line-height: 1.45; }
+#ctl input { width: 100%; font: 800 26px "Montserrat", sans-serif; letter-spacing: .16em; text-align: center; padding: 10px; border-radius: 12px; border: 1px solid #d9cfbb; }
+#ctl button { font: 700 15px "Montserrat", sans-serif; border-radius: 12px; padding: 12px 14px; cursor: pointer; border: 1px solid #e3d9c4; background: #f7f4ee; color: #111; }
+#ctl .go { width: 100%; margin-top: 10px; background: var(--gold-grad); border-color: transparent; color: #1a1205; }
+#ctl .list { display: grid; gap: 8px; }
+#ctl .list button { text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+#ctl .list button.on { background: var(--gold-grad); border-color: transparent; color: #1a1205; }
+#ctl .list button small { color: #8a5a14; font-weight: 600; font-size: 12px; white-space: nowrap; }
+#ctl .list button.on small { color: #1a1205; }
+#ctl .row2 { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
+#ctl .row2 button { background: none; border: 0; color: #777; padding: 6px 0; font-size: 13px; text-decoration: underline; }
+#ctl .msg { min-height: 1.3em; margin-top: 10px; font-size: 14px; color: #8a5a14; }
+#ctl .msg.err { color: #c0392b; }
+
 /* ---------- settings panel ---------- */
 #gear {
   position: fixed; right: 14px; bottom: 14px; z-index: 20;
@@ -410,6 +441,8 @@ body.light #gear { background: #fff; color: #8a5a14; border-color: #ddd2bb; }
   <button id="dReset">Сброс</button>
 </div>
 <div class="demo-msg" id="demoMsg"></div>
+<button id="streamBtn" title="Поток для судей (P)">Поток</button>
+<div id="ctl" role="dialog" aria-label="Поток для судей"><div class="card" id="ctlCard"></div></div>
 <button id="gear" title="Настройки (S)">⚙</button>
 <aside id="panel">
   <h3>Настройки экрана</h3>
@@ -944,9 +977,103 @@ function setState(patch, reload) {
   else { if (stream) { computeRotation(); buildSteps(); render(false); } }
 }
 $("gear").onclick = () => { $("panel").classList.toggle("open"); syncPanel(); };
+
+/* ---------- organiser: which stream the judges score (and every screen shows) ----------
+   Protected by the organiser code (menu «Коды судей» in the Google Sheet). The choice is written
+   to «На экране» in «Настройки», so the board, parents, judges and the secretary all switch,
+   and the server accepts scores only for that stream. */
+const ADMIN_STORE = () => (state.src === "demo" ? "artvin-admin-demo" : "artvin-admin");
+const DEMO_ADMIN = "99990000";
+let adminCode = "";
+try { adminCode = localStorage.getItem(ADMIN_STORE()) || ""; } catch (e) {}
+const normCode = c => String(c || "").replace(/[\s-]/g, "");
+async function adminCheck(code) {
+  if (state.src === "demo") { if (normCode(code) !== DEMO_ADMIN) throw new Error("Неверный код организатора"); return; }
+  if (!A.scriptUrl()) throw new Error("Табло не знает адрес скрипта: откройте его один раз по ссылке организатора из меню «Коды судей»");
+  await A.scriptGet({ action: "adminCheck", key: code });
+}
+async function adminSetStream(tab) {
+  if (state.src === "demo") {
+    const d = A.demoInit();
+    const head = d.settings[0].map(A.norm);
+    const tc = head.findIndex(c => /лист/.test(c)), ac = head.findIndex(c => /экран/.test(c));
+    d.settings.slice(1).forEach(r => { r[ac] = tab && r[tc] === tab ? "да" : ""; });
+    A.demoSave(d);
+    return;
+  }
+  await A.scriptPost({ action: "setStream", admin: adminCode, tab });
+}
+function ctlMsg(t, err) { const m = $("ctlMsg"); if (m) { m.textContent = t || ""; m.className = "msg" + (err ? " err" : ""); } }
+function openCtl() {
+  $("ctl").classList.add("open");
+  if (!adminCode) return showCtlCode();
+  showCtlList();
+}
+function closeCtl() { $("ctl").classList.remove("open"); }
+function showCtlCode(msg) {
+  $("ctlCard").innerHTML = `<form id="ctlForm">
+      <h3>Поток для судей</h3>
+      <p>Введите код организатора (меню «ArtVin Cup → Коды судей» в Google-таблице).${
+        state.src === "demo" ? " Демо-код: <b>9999 0000</b>." : ""}</p>
+      <input id="ctlCode" inputmode="numeric" autocomplete="off" placeholder="0000 0000" maxlength="11" />
+      <button class="go" id="ctlGo">Войти</button>
+      <div class="msg${msg ? " err" : ""}" id="ctlMsg">${A.esc(msg || "")}</div>
+      <div class="row2"><span></span><button type="button" id="ctlClose">Закрыть</button></div>
+    </form>`;
+  $("ctlCode").focus();
+  $("ctlClose").onclick = closeCtl;
+  $("ctlForm").onsubmit = async e => {
+    e.preventDefault();
+    const c = $("ctlCode").value.trim();
+    if (normCode(c).length !== 8) { ctlMsg("Код — 8 цифр", true); return; }
+    $("ctlGo").disabled = true; ctlMsg("Проверяю…");
+    try {
+      await adminCheck(c);
+      adminCode = normCode(c);
+      try { localStorage.setItem(ADMIN_STORE(), adminCode); } catch (x) {}
+      showCtlList();
+    } catch (err) { $("ctlGo").disabled = false; ctlMsg(err.message, true); }
+  };
+}
+function showCtlList(msg, err) {
+  const chosen = settings.find(s => s.active);
+  const label = s => s.gender === "F" ? "девочки" : "мальчики";
+  $("ctlCard").innerHTML = `
+    <h3>Поток для судей</h3>
+    <p>Судьи ставят оценки только в выбранный поток; табло, родители и секретарь показывают его же.</p>
+    <div class="list">
+      ${settings.map(s => `<button type="button" data-tab="${A.esc(s.tab)}" class="${chosen && chosen.tab === s.tab ? "on" : ""}">
+          <span>${A.esc(s.title)}</span><small>${chosen && chosen.tab === s.tab ? "✓ сейчас · " : ""}${label(s)}</small></button>`).join("")}
+      <button type="button" data-tab="" class="${chosen ? "" : "on"}"><span>По расписанию «Начало»</span><small>${chosen ? "" : "✓ сейчас"}</small></button>
+    </div>
+    <div class="msg${err ? " err" : ""}" id="ctlMsg">${A.esc(msg || "")}</div>
+    <div class="row2"><button type="button" id="ctlOut">Забыть код на этом устройстве</button><button type="button" id="ctlClose">Закрыть</button></div>`;
+  $("ctlClose").onclick = closeCtl;
+  $("ctlOut").onclick = () => { adminCode = ""; try { localStorage.removeItem(ADMIN_STORE()); } catch (x) {} showCtlCode(); };
+  $("ctlCard").querySelectorAll(".list button").forEach(b => (b.onclick = async () => {
+    const tab = b.dataset.tab;
+    const title = tab ? settings.find(s => s.tab === tab).title : "расписание «Начало»";
+    ctlMsg("Переключаю…");
+    $("ctlCard").querySelectorAll(".list button").forEach(x => (x.disabled = true));
+    try {
+      await adminSetStream(tab);
+      if (state.stream !== "auto") setState({ stream: "auto" });   // this screen follows the choice too
+      pinnedApp = null; stepIdx = 0;
+      await refresh();
+      showCtlList(tab ? `Готово: судьи и экраны — «${title}». У судей поток сменится в течение ~10 с.` : "Готово: снова по расписанию «Начало».");
+    } catch (e2) {
+      if (/код организатора/.test(e2.message)) { adminCode = ""; try { localStorage.removeItem(ADMIN_STORE()); } catch (x) {} return showCtlCode(e2.message); }
+      showCtlList("Не получилось: " + e2.message, true);
+    }
+  }));
+}
+$("streamBtn").onclick = openCtl;
+$("ctl").onclick = e => { if (e.target.id === "ctl") closeCtl(); };
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
   if (e.key === "s" || e.key === "S" || e.key === "ы" || e.key === "Ы") { $("panel").classList.toggle("open"); syncPanel(); }
+  if (e.key === "p" || e.key === "P" || e.key === "з" || e.key === "З") { $("ctl").classList.contains("open") ? closeCtl() : openCtl(); }
+  if (e.key === "Escape") closeCtl();
   if (e.key === "ArrowRight" && steps.length) { stepIdx = (stepIdx + 1) % steps.length; render(true); startCycle(); }
   if (e.key === "ArrowLeft" && steps.length) { stepIdx = (stepIdx - 1 + steps.length) % steps.length; render(true); startCycle(); }
 });
