@@ -1044,7 +1044,8 @@ function showCtlList(msg, err) {
     <div class="list">
       ${settings.map(s => `<button type="button" data-tab="${A.esc(s.tab)}" class="${chosen && chosen.tab === s.tab ? "on" : ""}">
           <span>${A.esc(s.title)}</span><small>${chosen && chosen.tab === s.tab ? "✓ сейчас · " : ""}${label(s)}</small></button>`).join("")}
-      <button type="button" data-tab="" class="${chosen ? "" : "on"}"><span>По расписанию «Начало»</span><small>${chosen ? "" : "✓ сейчас"}</small></button>
+      <button type="button" data-tab="" class="${chosen ? "" : "on"}"><span>${A.pinnedStream(settings)
+        ? `По умолчанию: «${A.esc(A.pinnedStream(settings).title)}»` : "По расписанию «Начало»"}</span><small>${chosen ? "" : "✓ сейчас"}</small></button>
     </div>
     <div class="msg${err ? " err" : ""}" id="ctlMsg">${A.esc(msg || "")}</div>
     <div class="row2"><button type="button" id="ctlOut">Забыть код на этом устройстве</button><button type="button" id="ctlClose">Закрыть</button></div>`;
@@ -1052,7 +1053,7 @@ function showCtlList(msg, err) {
   $("ctlOut").onclick = () => { adminCode = ""; try { localStorage.removeItem(ADMIN_STORE()); } catch (x) {} showCtlCode(); };
   $("ctlCard").querySelectorAll(".list button").forEach(b => (b.onclick = async () => {
     const tab = b.dataset.tab;
-    const title = tab ? settings.find(s => s.tab === tab).title : "расписание «Начало»";
+    const title = tab ? settings.find(s => s.tab === tab).title : (A.pinnedStream(settings) ? "поток по умолчанию" : "расписание «Начало»");
     ctlMsg("Переключаю…");
     $("ctlCard").querySelectorAll(".list button").forEach(x => (x.disabled = true));
     try {
@@ -1060,7 +1061,7 @@ function showCtlList(msg, err) {
       if (state.stream !== "auto") setState({ stream: "auto" });   // this screen follows the choice too
       pinnedApp = null; stepIdx = 0;
       await refresh();
-      showCtlList(tab ? `Готово: судьи и экраны — «${title}». У судей поток сменится в течение ~10 с.` : "Готово: снова по расписанию «Начало».");
+      showCtlList(tab ? `Готово: судьи и экраны — «${title}». У судей поток сменится в течение ~10 с.` : `Готово: снова ${title}.`);
     } catch (e2) {
       if (/код организатора/.test(e2.message)) { adminCode = ""; try { localStorage.removeItem(ADMIN_STORE()); } catch (x) {} return showCtlCode(e2.message); }
       showCtlList("Не получилось: " + e2.message, true);

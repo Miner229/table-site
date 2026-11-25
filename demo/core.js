@@ -18,6 +18,9 @@ const CONFIG = {
   SETTINGS_TAB: "Настройки",
   // Apps Script web-app URL (judges write scores through it). Can also come from ?api=... in the judge link.
   SCRIPT_URL: "",
+  // Stream used by every screen and judge while nobody has «На экране = да» (instead of the «Начало»
+  // schedule). Tab name or title, e.g. "Пятница 1". Empty "" = back to the schedule.
+  PIN_STREAM: "Пятница 1",
 };
 
 const APPARATUS = {
@@ -189,11 +192,24 @@ function parseSettings(values) {
  * to the whole sheet, so a judge behaves exactly as before while «да» is used.
  * Returns { stream, status: "manual" | "live" | "upcoming" | "default" | "none", next } —
  * next = the stream that starts after now (null if none); next.start = when to switch. */
+// CONFIG.PIN_STREAM as a settings row: matches the tab or the title, ignoring case, spaces, «·» and «поток»
+function pinnedStream(settings) {
+  if (!CONFIG.PIN_STREAM) return null;
+  const key = x => norm(x).replace(/поток/g, "").replace(/[^a-zа-я0-9]+/g, "");
+  const want = key(CONFIG.PIN_STREAM);
+  return settings.find(s => key(s.tab) === want) || settings.find(s => key(s.title) === want) || null;
+}
+// The stream judges are allowed to score right now, if one is fixed: «На экране = да» first, else PIN_STREAM.
+function chosenStream(settings) {
+  return settings.find(s => s.active) || pinnedStream(settings) || null;
+}
 function activeStream(settings, now, gender) {
   const t = toMs(now);
   const list = gender ? settings.filter(s => s.gender === gender) : settings.slice();
   if (!list.length) return { stream: null, status: "none", next: null };
   if (settings.some(s => s.active)) return { stream: list.find(s => s.active) || list[0], status: "manual", next: null };
+  const pin = pinnedStream(settings);
+  if (pin) return { stream: list.includes(pin) ? pin : list[0], status: "pinned", next: null };
   const timed = list.filter(s => s.start != null).sort((a, b) => a.start - b.start);
   if (!timed.length) return { stream: list[0], status: "default", next: null };
   let live = null;
@@ -217,6 +233,9 @@ function scheduleCheck(settings, now) {
   const notes = [];
   if (manual.length) notes.push(`«На экране = да» у «${manual.map(s => s.title).join("», «")}» — расписание «Начало» не действует`);
   if (manual.length > 1) notes.push("«да» стоит у нескольких потоков — показывается первый");
+  const pin = pinnedStream(settings);
+  if (!manual.length && pin) notes.push(`Закреплён поток «${pin.title}» (настройка сайта) — расписание «Начало» не действует`);
+  if (!manual.length && CONFIG.PIN_STREAM && !pin) notes.push(`Закреплённый поток «${CONFIG.PIN_STREAM}» не найден в «Настройках» — работает расписание`);
   if (!anyStart && !manual.length) notes.push("Не заполнено «Начало» — показывается первый поток");
   const rows = settings.map(s => {
     const problems = [];
@@ -536,6 +555,7 @@ async function loadStream(src, st) {
 }
 
 global.ArtVin = {
+  pinnedStream, chosenStream,
   CONFIG, APPARATUS, ORDER, ROT_MODES,
   norm, esc, parseScore, fmtScore, parseCSV, parseSettings, parseStream, parseGender, apparatusFromText,
   appAtRotation, autoRotation, timeRotation, currentRotation, groupsAt, rankList, hasScore, isFinished, rotationProgress,

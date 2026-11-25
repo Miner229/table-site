@@ -171,7 +171,7 @@ async function writeScore(g, value, expected) {
     const d = A.demoInit();
     const st = settings.find(s => s.tab === current.tab);
     if (!st || st.gender !== me.gender) throw new Error("Этот поток не для вашего снаряда");
-    const chosen = A.parseSettings(d.settings).find(x => x.active);
+    const chosen = A.chosenStream(A.parseSettings(d.settings));
     if (chosen && chosen.tab !== current.tab) throw new Error(`Сейчас оценки принимаются только в поток «${chosen.tab}»`);
     const values = d.tabs[current.tab];
     const parsed = A.parseStream(values, st.gender, 1);
@@ -187,12 +187,14 @@ async function writeScore(g, value, expected) {
     A.demoSave(d);
     return;
   }
+  // same rule as the server, also before the new server version is deployed
+  if (chosenTab && chosenTab !== current.tab) throw new Error(`Сейчас оценки принимаются только в поток «${chosenTab}»`);
   await A.scriptPost({ action: "score", key: KEY, tab: current.tab, row: g.row, name: g.name, value, expected });
 }
 
 /* ---------- load ---------- */
 // Same rule as the board (A.activeStream): «да» override, else «Начало» in Aktobe time.
-let offStream = null;
+let offStream = null, chosenTab = null;
 let pick = null, autoPick = null, switchT = null, failSince = 0;
 async function load() {
   if (!me) return;   // logged out
@@ -202,7 +204,8 @@ async function load() {
     if (!settings.length) throw new Error("Нет потоков для этого снаряда");
     autoPick = A.activeStream(all, Date.now(), me.gender);
     // organiser chose a stream of the other gender → this apparatus has nothing to score now
-    const chosenAll = all.find(s => s.active);
+    const chosenAll = A.chosenStream(all);
+    chosenTab = chosenAll ? chosenAll.tab : null;
     offStream = chosenAll && chosenAll.gender !== me.gender ? chosenAll : null;
     const chosen = streamChoice !== "auto" && settings.find(s => s.tab === streamChoice);
     pick = chosen ? { stream: chosen, status: "chosen", next: null } : autoPick;

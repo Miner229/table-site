@@ -371,3 +371,38 @@ test("separator labels from real start lists: typo, trailing space, case — but
   const f = A.parseStream([["№", "ФИО", "Год"], ["", "Разновысокие брусья"], ["1", "Петрова Анна", "2016"]], "F", 1);
   assert.equal(f.gymnasts[0].start, "ubars");
 });
+
+/* ---------------- pinned stream (CONFIG.PIN_STREAM) ---------------- */
+test("pinned stream: «Пятница 1» wins over the schedule; «да» wins over the pin; empty pin = schedule", () => {
+  const saved = A.CONFIG.PIN_STREAM;
+  const rows = [["Поток", "Лист", "Пол", "Ротация", "Режим", "Время ротаций", "На экране", "Начало"],
+    ["Пятница · Поток 1", "Пятница 1", "М", "1", "авто", "", "", "27.11.2026 08:00"],
+    ["Пятница · Поток 2", "Пятница 2", "Ж", "1", "авто", "", "", "27.11.2026 12:15"],
+    ["Суббота · Поток 1", "Суббота 1", "М", "1", "авто", "", "", "28.11.2026 07:30"]];
+  const at = Date.UTC(2026, 10, 28, 6, 0);   // Saturday 11:00 Aktobe — schedule would say «Суббота 1»
+  try {
+    A.CONFIG.PIN_STREAM = "Пятница 1";
+    let s = A.parseSettings(rows);
+    let p = A.activeStream(s, at);
+    assert.equal(p.stream.tab, "Пятница 1"); assert.equal(p.status, "pinned");
+    assert.equal(A.chosenStream(s).tab, "Пятница 1");
+    // judges of the other gender: their list doesn't contain it → they get their own first stream, but chosenStream says «Пятница 1»
+    assert.equal(A.activeStream(s, at, "F").stream.tab, "Пятница 2");
+    // matching by title, any case / spacing
+    A.CONFIG.PIN_STREAM = "пятница · поток 1";
+    assert.equal(A.pinnedStream(s).tab, "Пятница 1");
+    // organiser «да» beats the pin
+    const r2 = rows.map(r => r.slice()); r2[3][6] = "да";
+    s = A.parseSettings(r2);
+    assert.equal(A.activeStream(s, at).stream.tab, "Суббота 1");
+    assert.equal(A.chosenStream(s).tab, "Суббота 1");
+    // unknown pin → schedule, with a note on the check screen
+    A.CONFIG.PIN_STREAM = "Понедельник 9";
+    s = A.parseSettings(rows);
+    assert.equal(A.activeStream(s, at).status, "live");
+    assert.ok(A.scheduleCheck(s, at).notes.some(n => /не найден/.test(n)));
+    A.CONFIG.PIN_STREAM = "";
+    assert.equal(A.activeStream(s, at).stream.tab, "Суббота 1");
+    assert.equal(A.chosenStream(s), null);
+  } finally { A.CONFIG.PIN_STREAM = saved; }
+});
