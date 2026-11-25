@@ -66,12 +66,57 @@ function streams_() {
   var h = values[hi].map(norm_);
   var tabCol = h.findIndex(function (c) { return /лист/.test(c); });
   var gCol = h.findIndex(function (c) { return /^пол/.test(c); });
+  var aCol = h.findIndex(function (c) { return /экран|актив/.test(c); });
   var out = {};
   values.slice(hi + 1).forEach(function (r) {
     var tab = String(r[tabCol] || "").trim();
-    if (tab) out[tab] = { gender: gender_(gCol >= 0 ? r[gCol] : "") };
+    if (tab) out[tab] = { gender: gender_(gCol >= 0 ? r[gCol] : ""), active: aCol >= 0 && isYes_(r[aCol]) };
   });
   return out;
+}
+function isYes_(v) { return /^(да|yes|1|\+|x|х|✓)/.test(norm_(v)); }
+// Stream chosen by the organiser («На экране» = да). While one is chosen, scores go ONLY there.
+function chosenTab_(streams) {
+  var t = Object.keys(streams).filter(function (k) { return streams[k].active; });
+  return t.length ? t[0] : null;
+}
+
+/* ---------------- organiser code (switches the stream for judges and screens) ---------------- */
+function adminKey_() {
+  var props = PropertiesService.getScriptProperties();
+  var k = props.getProperty("ADMIN_KEY");
+  if (!k) { k = randomKey_(); props.setProperty("ADMIN_KEY", k); }
+  return k;
+}
+function checkAdmin_(code) {
+  if (normKey_(code) !== adminKey_()) {
+    Utilities.sleep(1500);
+    throw new Error("Неверный код организатора");
+  }
+}
+// tab = stream to show and judge; "" = back to the «Начало» schedule
+function setStream_(tab) {
+  var sh = sheet_(SETTINGS_TAB);
+  var values = sh.getDataRange().getDisplayValues();
+  var hi = -1;
+  for (var i = 0; i < values.length; i++) if (values[i].some(function (c) { return /лист/.test(norm_(c)); })) { hi = i; break; }
+  if (hi < 0) throw new Error("Во вкладке «Настройки» нет колонки «Лист»");
+  var h = values[hi].map(norm_);
+  var tabCol = h.findIndex(function (c) { return /лист/.test(c); });
+  var aCol = h.findIndex(function (c) { return /экран|актив/.test(c); });
+  if (aCol < 0) {   // no «На экране» column yet → add it after the last header
+    aCol = values[hi].length;
+    sh.getRange(hi + 1, aCol + 1).setValue("На экране");
+  }
+  var found = !tab;
+  for (var r = hi + 1; r < values.length; r++) {
+    var t = String(values[r][tabCol] || "").trim();
+    if (!t) continue;
+    var want = tab && t === tab ? "да" : "";
+    if (want) found = true;
+    if (String(values[r][aCol] || "") !== want) sh.getRange(r + 1, aCol + 1).setValue(want);
+  }
+  if (!found) throw new Error("Поток «" + tab + "» не найден в «Настройках»");
 }
 function headerIndex_(values) {
   for (var i = 0; i < values.length; i++)
@@ -88,6 +133,7 @@ function doGet(e) {
       if (!streams_()[p.tab]) throw new Error("Поток не найден в «Настройках»");
       return json_({ ok: true, values: sheet_(p.tab).getDataRange().getDisplayValues() });
     }
+    if (p.action === "adminCheck") { checkAdmin_(p.key); return json_({ ok: true }); }
     if (p.action === "whoami") { var j = judge_(p.key); return json_({ ok: true, gender: j.gender, app: j.app, name: APPS[j.app] }); }
     return json_({ ok: true, service: "ArtVin Cup scores" });
   } catch (err) {
@@ -99,11 +145,23 @@ function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
     var b = JSON.parse(e.postData.contents);
+    if (b.action === "setStream") {
+      checkAdmin_(b.admin);
+      lock.waitLock(15000);
+      var tab = String(b.tab || "").trim();
+      setStream_(tab);
+      SpreadsheetApp.flush();
+      log_([new Date(), "Организатор", tab || "по расписанию", "", "Поток для судей и табло", "", tab ? "да" : "расписание"]);
+      return json_({ ok: true, tab: tab });
+    }
     if (b.action !== "score") throw new Error("Неизвестное действие");
     var j = judge_(b.key);                      // apparatus comes ONLY from the key
-    var st = streams_()[b.tab];
+    var all = streams_();
+    var st = all[b.tab];
     if (!st) throw new Error("Поток не найден в «Настройках»");
     if (st.gender !== j.gender) throw new Error("Этот поток не для вашего снаряда");
+    var chosen = chosenTab_(all);
+    if (chosen && chosen !== b.tab) throw new Error("Сейчас оценки принимаются только в поток «" + chosen + "»");
 
     // value: "" (удалить) or number 0..MAX_SCORE with up to 3 decimals; 0 = «не выступал»
     var raw = String(b.value == null ? "" : b.value).trim().replace(",", ".");
@@ -236,6 +294,8 @@ function makeKeys_() {
     k[key] = g + ":" + a;
   }); });
   PropertiesService.getScriptProperties().setProperty("JUDGE_KEYS", JSON.stringify(k));
+  var a; do { a = randomKey_(); } while (k[a]);
+  PropertiesService.getScriptProperties().setProperty("ADMIN_KEY", a);
   return k;
 }
 function resetKeys() {
@@ -253,12 +313,17 @@ function showJudgeLinks() {
   var k = keys_();
   if (!Object.keys(k).length || !/^\d{8}$/.test(Object.keys(k)[0])) k = makeKeys_();
   var common = JUDGE_PAGE + "?api=" + encodeURIComponent(api);
+  var board = JUDGE_PAGE.replace(/judge\.html$/, "") + "?api=" + encodeURIComponent(api);
   var rows = Object.keys(k).map(function (key) {
     var p = k[key].split(":");
     return { g: p[0], app: p[1], key: key };
   }).sort(function (a, b) { return a.g === b.g ? ORDER[a.g].indexOf(a.app) - ORDER[b.g].indexOf(b.app) : (a.g === "M" ? -1 : 1); });
   var html = "<style>body{font-family:Arial;font-size:13px}td{padding:6px 8px;border-bottom:1px solid #eee}" +
     ".code{font:bold 18px monospace;letter-spacing:2px}input{width:100%;font-size:11px}</style>" +
+    "<p style='background:#fff8e6;padding:8px 10px;border-radius:6px'><b>Организатор.</b> Код для кнопки «Поток» на табло: " +
+    "<span class='code'>" + fmtKey_(adminKey_()) + "</span><br>Откройте табло один раз по этой ссылке на компьютере у экрана — " +
+    "тогда кнопка «Поток» (левый нижний угол, или клавиша P) сможет переключать поток для судей и экранов:" +
+    "<input readonly onclick='this.select()' value='" + board + "'></p>" +
     "<p><b>1. Ссылка для всех судей</b> (одна и та же):</p><input readonly onclick='this.select()' value='" + common + "'>" +
     "<p><b>2. Каждому судье — только код его снаряда.</b> Судья открывает ссылку, выбирает снаряд и вводит код " +
     "(или сразу ссылку своего снаряда из последней колонки). Код открывает только свой снаряд.</p><table>" +

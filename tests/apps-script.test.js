@@ -9,7 +9,7 @@ const vm = require("vm");
 function setup() {
   const tabs = {
     "Настройки": [["Поток", "Лист", "Пол", "Ротация", "Режим", "Время ротаций", "На экране"],
-      ["Пт 1", "Пятница 1", "М", "1", "авто", "", "да"],
+      ["Пт 1", "Пятница 1", "М", "1", "авто", "", ""],
       ["Пт 2", "Пятница 2", "М", "1", "авто", "", ""],
       ["Вс 1", "Воскресенье 1", "Ж", "1", "ручной", "", ""]],
     "Пятница 1": [["№", "ФИО", "Год", "Клуб", "Старт", "Вольные", "Конь", "Кольца", "Прыжок", "Брусья", "Перекладина", "Сумма"],
@@ -198,4 +198,48 @@ test("«Подготовить вкладки потоков»: adds missing sco
   assert.equal(tabs["Импорт М"][2][7], "9.1");
   assert.equal(post({ tab: "Импорт Ж", row: 4, name: "Брусилов Артём", key: key["F:beam"], value: "8.4", expected: "" }).ok, true);
   assert.equal(tabs["Импорт Ж"][3][7], "8.4");
+});
+
+test("organiser code switches the stream: «да» only on the chosen one, '' = back to schedule", () => {
+  const { ctx, tabs, post } = setup();
+  const admin = ctx.adminKey_();
+  assert.match(admin, /^[1-9]\d{7}$/);
+  const yes = () => tabs["Настройки"].slice(1).map(r => r[1] + "=" + r[6]).join(" ");
+  assert.equal(post({ action: "setStream", admin: admin.slice(0, 4) + " " + admin.slice(4), tab: "Пятница 2" }).ok, true);
+  assert.equal(yes(), "Пятница 1= Пятница 2=да Воскресенье 1=");
+  assert.equal(post({ action: "setStream", admin, tab: "Пятница 1" }).ok, true);
+  assert.equal(yes(), "Пятница 1=да Пятница 2= Воскресенье 1=");
+  assert.equal(post({ action: "setStream", admin, tab: "" }).ok, true);
+  assert.equal(yes(), "Пятница 1= Пятница 2= Воскресенье 1=");
+  assert.match(post({ action: "setStream", admin, tab: "Нет такого" }).error, /не найден/);
+});
+
+test("wrong organiser code is refused and slowed down; judge codes don't work as organiser code", () => {
+  const { ctx, tabs, key, post, slept } = setup();
+  const before = slept();
+  assert.match(post({ action: "setStream", admin: "11112222", tab: "Пятница 2" }).error, /Неверный код организатора/);
+  assert.match(post({ action: "setStream", admin: key["M:rings"], tab: "Пятница 2" }).error, /Неверный код организатора/);
+  assert.ok(slept() - before >= 3000);
+  assert.ok(tabs["Настройки"].slice(1).every(r => r[6] === "" || r[1] === "Пятница 1"));
+  assert.equal(ctx.doGet({ parameter: { action: "adminCheck", key: ctx.adminKey_() } }).ok, true);
+  assert.equal(ctx.doGet({ parameter: { action: "adminCheck", key: "11112222" } }).ok, false);
+});
+
+test("while a stream is chosen, judges can score only in that stream", () => {
+  const { ctx, tabs, key, post } = setup();
+  post({ action: "setStream", admin: ctx.adminKey_(), tab: "Пятница 1" });
+  assert.equal(post({ ...IVANOV, key: key["M:rings"], value: "9", expected: "" }).ok, true);
+  const other = post({ tab: "Пятница 2", row: 2, name: "Иванов Иван", key: key["M:rings"], value: "9", expected: "" });
+  assert.match(other.error, /только в поток «Пятница 1»/);
+  assert.equal(tabs["Пятница 2"][1][7], "");
+  // back to the schedule → no lock (as before)
+  post({ action: "setStream", admin: ctx.adminKey_(), tab: "" });
+  assert.equal(post({ tab: "Пятница 2", row: 2, name: "Иванов Иван", key: key["M:rings"], value: "9", expected: "" }).ok, true);
+});
+
+test("new codes also renew the organiser code", () => {
+  const { ctx } = setup();
+  const a = ctx.adminKey_();
+  ctx.makeKeys_();
+  assert.notEqual(ctx.adminKey_(), a);
 });

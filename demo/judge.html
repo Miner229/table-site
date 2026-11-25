@@ -41,6 +41,8 @@ select, .btn {
   border: 1px solid rgba(242,189,87,.3); border-radius: 10px; padding: 10px 12px;
 }
 select { flex: 1; min-width: 200px; }
+.stream-now { flex: 1; min-width: 200px; font-size: 15px; color: var(--muted); padding: 10px 2px; }
+.stream-now b { color: var(--text); }
 .btn { cursor: pointer; color: var(--gold-2); }
 .btn.on { background: var(--gold-grad); color: #1a1205; border-color: transparent; }
 .rotline { margin-top: 10px; font-size: 13px; color: var(--muted); letter-spacing: .04em; }
@@ -146,7 +148,7 @@ let showAll = false;
 let lastRot = null, newGroupUntil = 0;
 // One stream runs at a time: judges always follow the stream marked «На экране».
 // A manual pick lasts only until the page is reopened, so nobody is left on yesterday's stream.
-let streamChoice = "auto";
+const streamChoice = "auto";   // the organiser picks the stream (button «Поток» on the board)
 try { const u = JSON.parse(localStorage.getItem(UI)) || {}; showAll = !!u.showAll; } catch (e) {}
 const saveUI = () => { try { localStorage.setItem(UI, JSON.stringify({ showAll })); } catch (e) {} };
 
@@ -169,6 +171,8 @@ async function writeScore(g, value, expected) {
     const d = A.demoInit();
     const st = settings.find(s => s.tab === current.tab);
     if (!st || st.gender !== me.gender) throw new Error("Этот поток не для вашего снаряда");
+    const chosen = A.parseSettings(d.settings).find(x => x.active);
+    if (chosen && chosen.tab !== current.tab) throw new Error(`Сейчас оценки принимаются только в поток «${chosen.tab}»`);
     const values = d.tabs[current.tab];
     const parsed = A.parseStream(values, st.gender, 1);
     const col = parsed.appCols[me.app];
@@ -188,6 +192,7 @@ async function writeScore(g, value, expected) {
 
 /* ---------- load ---------- */
 // Same rule as the board (A.activeStream): «да» override, else «Начало» in Aktobe time.
+let offStream = null;
 let pick = null, autoPick = null, switchT = null, failSince = 0;
 async function load() {
   if (!me) return;   // logged out
@@ -196,6 +201,9 @@ async function load() {
     settings = all.filter(s => s.gender === me.gender);
     if (!settings.length) throw new Error("Нет потоков для этого снаряда");
     autoPick = A.activeStream(all, Date.now(), me.gender);
+    // organiser chose a stream of the other gender → this apparatus has nothing to score now
+    const chosenAll = all.find(s => s.active);
+    offStream = chosenAll && chosenAll.gender !== me.gender ? chosenAll : null;
     const chosen = streamChoice !== "auto" && settings.find(s => s.tab === streamChoice);
     pick = chosen ? { stream: chosen, status: "chosen", next: null } : autoPick;
     let target = pick.stream;
@@ -235,6 +243,14 @@ function setFoot(ok, msg) {
 /* ---------- render ---------- */
 let renderedSig = "";
 function render() {
+  if (offStream) {
+    renderedSig = "";
+    $("app").innerHTML = `<div class="app-card"><h1>${A.esc(A.APPARATUS[me.app].full)}</h1>
+      <div class="lock">🔒 Вы можете ставить оценки только на этом снаряде</div></div>
+      <div class="status">Сейчас идёт поток <b>«${A.esc(offStream.title)}»</b> (${offStream.gender === "F" ? "девочки" : "мальчики"}).
+      Для вашего снаряда оценок нет — список появится сам, когда организатор включит ваш поток.</div>`;
+    return;
+  }
   const groups = A.groupsAt(stream, info.rotation);
   const mine = groups[me.app] || [];
   const order = A.ORDER[me.gender];
@@ -282,10 +298,7 @@ function render() {
       <h1>${A.esc(A.APPARATUS[me.app].full)}</h1>
       <div class="lock">🔒 Вы можете ставить оценки только на этом снаряде</div>
       <div class="controls">
-        <select id="streamSel">
-          <option value="auto">● ${A.esc(autoPick.stream.title)}</option>
-          ${settings.map(s => `<option value="${A.esc(s.tab)}">${A.esc(s.title)}</option>`).join("")}
-        </select>
+        <div class="stream-now" id="streamNow">Поток: <b>${A.esc(current.title)}</b></div>
         <button class="btn ${showAll ? "on" : ""}" id="allBtn">Весь поток</button>
       </div>
       ${A.streamWarnings(stream).map(w => `<div class="rotline" style="color:#ff9b8b">⚠ ${A.esc(w)}</div>`).join("")}
@@ -304,9 +317,6 @@ function render() {
       <div class="group-title">${A.esc(s.title)}</div>
       ${s.list.length ? s.list.map((g, i) => rowHtml(g, i + 1)).join("") : '<div class="empty">На этом снаряде сейчас никого нет</div>'}
     `).join("");
-    $("streamSel").value = streamChoice;
-    if ($("streamSel").value !== streamChoice) $("streamSel").value = "auto";
-    $("streamSel").onchange = e => { streamChoice = e.target.value; saveUI(); renderedSig = ""; load(); };
     $("allBtn").onclick = () => { showAll = !showAll; saveUI(); renderedSig = ""; render(); };
   } else {
     // refresh values without disturbing what the judge is typing
