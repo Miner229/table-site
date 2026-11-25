@@ -194,8 +194,17 @@ nav.apps button.done .cnt::after { content: "✓"; margin-left: .15em; }
 #rotOverlay .moves span { white-space: nowrap; }
 #rotOverlay .moves i { font-style: normal; color: var(--gold-2); margin: 0 .35em; }
 #rotOverlay .moves b { color: var(--gold-1); }
+/* stream change: «<поток> · <время>» */
+#rotOverlay h1.stream-h { font-size: 104px; line-height: 1.1; max-width: 92vw; margin-bottom: 10px; }
+/* small «no connection» tag: shown only after ~60 s of failed refreshes; the last good data stays on screen */
+#netWarn {
+  position: fixed; left: 14px; bottom: 14px; z-index: 22; padding: 4px 10px; border-radius: 8px;
+  font: 600 12px "Montserrat", sans-serif; color: #ffb4a6; background: rgba(18,15,11,.85); border: 1px solid rgba(255,140,120,.35);
+}
+#netWarn[hidden] { display: none; }
 @media (max-width: 899px) {
   #rotOverlay h1 { font-size: 64px; }
+  #rotOverlay h1.stream-h { font-size: 40px; }
   #rotOverlay .k { font-size: 13px; }
   #rotOverlay .moves { grid-template-columns: auto; font-size: 18px; gap: 8px; }
 }
@@ -226,6 +235,15 @@ body.pointer #gear, #gear:focus { opacity: 1; }
 #panel .hint { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 4px 0 8px; }
 #panel .links a { display: inline-block; margin: 3px 6px 3px 0; color: var(--gold-1); font-size: 13px; }
 #panel hr { border: 0; border-top: 1px solid rgba(242,189,87,.18); margin: 12px 0; }
+#panel .sched { margin: 6px 0; }
+#panel .sched > div { padding: 5px 0; border-bottom: 1px solid rgba(242,189,87,.1); color: #ddd4c4; line-height: 1.35; }
+#panel .sched .when { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+#panel .sched .tab { color: var(--muted); font-size: 12px; }
+#panel .sched .mk { float: right; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+#panel .sched .live .mk { color: #7be3a0; }
+#panel .sched .next .mk, #panel .sched .upcoming .mk { color: var(--gold-2); }
+#panel .sched .live { color: #fff; font-weight: 700; }
+#panel .sched .bad { color: #ff9b8b; font-size: 12px; font-weight: 500; }
 .demo-bar {
   position: fixed; left: 0; right: 0; margin: 0 auto; width: max-content; max-width: calc(100% - 24px); bottom: 12px; z-index: 25;
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
@@ -380,6 +398,7 @@ body.light #gear { background: #fff; color: #8a5a14; border-color: #ddd2bb; }
 </main>
 
 <div id="rotOverlay" aria-live="polite"></div>
+<div id="netWarn" hidden></div>
 <div class="demo-badge" id="demoBadge" hidden>демо-данные</div>
 <div class="demo-bar" id="demoBar" hidden>
   <span class="tag">Тест · демо</span>
@@ -395,6 +414,11 @@ body.light #gear { background: #fff; color: #8a5a14; border-color: #ddd2bb; }
 <aside id="panel">
   <h3>Настройки экрана</h3>
   <div id="warnBox"></div>
+  <h3>Потоки · время Актобе</h3>
+  <div class="hint" id="schedNotes"></div>
+  <div class="sched" id="schedBox"></div>
+  <div class="row-btns"><button class="small" id="tabCheck">Проверить вкладки</button><span class="hint" id="tabCheckMsg"></span></div>
+  <hr>
   <label>Данные
     <select id="pSrc"><option value="sheet">Google-таблица</option><option value="demo">Демо</option></select>
   </label>
@@ -473,36 +497,100 @@ let skipHold = false;     // demo «Следующая ротация»: switch 
 const isPhone = () => matchMedia("(max-width: 899px)").matches;
 
 /* ---------- loading ---------- */
-async function refresh() {
-  try {
-    settings = await A.loadSettings(state.src);
-    if (!settings.length) throw new Error("Во вкладке «Настройки» нет потоков");
-    fillStreamSelect();
-    current = pickStream();
-    stream = await A.loadStream(state.src, current);
-    computeRotation();
-    buildSteps();
-    render(false);
-  } catch (e) {
-    console.error(e);
-    showMessage("Нет данных из Google-таблицы", e.message, true);
+let pick = null;          // A.activeStream() result for the stream on screen
+let preload = null;       // { tab, stream, at } — next stream, loaded ~2 min before its «Начало»
+let preloading = false;
+let switchT = null;       // fires exactly at the next «Начало»
+let failSince = 0, lastOk = 0;
+
+// One refresh at a time; a call during a refresh runs once more afterwards.
+// fast = use the settings already loaded (the scheduled switch: no network wait at that moment).
+let busy = null, again = null;
+function refresh(fast) {
+  if (busy) { again = again === null ? !!fast : again && !!fast; return busy; }
+  busy = doRefresh(!!fast).catch(e => console.error(e)).finally(() => {
+    busy = null;
+    if (again !== null) { const f = again; again = null; refresh(f); }
+  });
+  return busy;
+}
+async function doRefresh(fast) {
+  if (!fast || !settings.length) {
+    let s;
+    try {
+      s = await A.loadSettings(state.src);
+      if (!s.length) throw new Error("Во вкладке «Настройки» нет потоков");
+    } catch (e) { return failed(e); }
+    settings = s;
   }
+  fillStreamSelect();
+  const p = pickStream();
+  const switching = !!current && p.stream.tab !== current.tab;
+  let data;
+  if (switching && preload && preload.tab === p.stream.tab && Date.now() - preload.at < 5 * 60000) data = preload.stream;
+  else {
+    // on failure the stream on screen stays (also during a switch) and the next refresh retries
+    try { data = await A.loadStream(state.src, p.stream); } catch (e) { return failed(e); }
+  }
+  if (switching) {
+    // new stream: paging, cycling and rotation start from the beginning
+    const tab = p.stream.tab;
+    steps = []; stepIdx = 0; pinnedApp = null; lastKey = "";
+    delete shownRot[tab]; delete pending[tab]; delete announced[tab];
+    preload = null;
+  }
+  current = p.stream; pick = p; stream = data;
+  computeRotation();
+  buildSteps();
+  render(false);           // the one render that swaps the new stream in
+  if (switching) {
+    if (p.status === "live" || p.status === "upcoming") announceStream();
+    startCycle();
+  }
+  failSince = 0; lastOk = Date.now(); updateNet();
+  planNext();
+}
+function failed(e) {
+  console.error(e);
+  if (!stream) { showMessage("Нет данных из Google-таблицы", e.message, true); return; }   // nothing to keep yet
+  if (!failSince) failSince = Date.now();
+  updateNet();
+}
+function updateNet() {
+  const bad = failSince && Date.now() - failSince >= 60000;
+  $("netWarn").hidden = !bad;
+  if (bad) $("netWarn").textContent = `Нет связи с таблицей · данные от ${A.fmtVenueTime(lastOk)}`;
+}
+// Preload the next stream ~2 min before its «Начало» and switch exactly at that minute.
+function planNext() {
+  clearTimeout(switchT);
+  if (state.stream !== "auto" || !pick || !pick.next) return;
+  const next = pick.next, dt = next.start - Date.now();
+  if (dt <= 120000 && next.tab !== current.tab && !preloading &&
+      !(preload && preload.tab === next.tab && Date.now() - preload.at < 30000)) {
+    preloading = true;
+    A.loadStream(state.src, next)
+      .then(s => { preload = { tab: next.tab, stream: s, at: Date.now() }; })
+      .catch(e => console.warn("preload", e))
+      .finally(() => { preloading = false; });
+  }
+  if (dt > 0 && dt < 6 * 3600000) switchT = setTimeout(() => refresh(true), dt + 100);
 }
 
 function pickStream() {
   if (state.stream !== "auto") {
     const s = settings.find(x => x.tab === state.stream || x.title === state.stream);
-    if (s) return s;
+    if (s) return { stream: s, status: "chosen", next: null };
   }
-  return settings.find(x => x.active) || settings[0];
+  return A.activeStream(settings, Date.now());
 }
 
 function fillStreamSelect() {
   const sel = $("streamSel");
-  const sig = settings.map(s => s.tab + s.title + s.active).join("|");
+  const active = A.activeStream(settings, Date.now()).stream;
+  const sig = settings.map(s => s.tab + s.title + s.active).join("|") + "|" + (active && active.tab);
   if (sel.dataset.sig !== sig) {
     sel.dataset.sig = sig;
-    const active = settings.find(x => x.active);
     sel.innerHTML = `<option value="auto">● ${A.esc(active ? active.title : "Текущий поток")}</option>` +
       settings.map(s => `<option value="${A.esc(s.tab)}">${A.esc(s.title)}</option>`).join("");
   }
@@ -608,7 +696,8 @@ function render(advanced) {
 
   // header
   const pend = pending[current.tab];
-  $("rotInfo").innerHTML = (rotInfo.finished && !pend
+  if (pick && pick.status === "upcoming") $("rotInfo").textContent = A.startsLabel(current, Date.now());
+  else $("rotInfo").innerHTML = (rotInfo.finished && !pend
       ? `<span class="fin">Все снаряды пройдены</span> · ротация ${rotInfo.shown} из ${rotInfo.total}`
       : `Ротация ${rotInfo.shown} из ${rotInfo.total}`) +
     (pend ? `<span class="pending">→ ${pend.r}-я через ${Math.max(0, Math.ceil((state.hold * 1000 - (Date.now() - pend.since)) / 1000))} с</span>` : "");
@@ -712,6 +801,18 @@ function announceRotation() {
   overlayT = setTimeout(() => ov.classList.remove("show"), 7000);
 }
 
+// «<поток> · <время>» for ~5 s when the schedule switches to another stream
+function announceStream() {
+  const ov = $("rotOverlay");
+  const when = current.start != null ? " · " + A.fmtVenueTime(current.start) : "";
+  ov.innerHTML = `<div><div class="k">${pick.status === "upcoming" ? "Следующий поток" : "Поток"}</div>` +
+    `<h1 class="stream-h">${A.esc(current.title)}${when}</h1></div>`;
+  if (!state.anim) return;
+  ov.classList.add("show");
+  clearTimeout(overlayT);
+  overlayT = setTimeout(() => ov.classList.remove("show"), 5000);
+}
+
 // Olympic convention: SURNAME Name
 function fmtName(n) {
   const parts = String(n).trim().split(/\s+/);
@@ -743,7 +844,7 @@ function startCycle() {
 }
 function startRefresh() {
   clearInterval(refreshTimer);
-  refreshTimer = setInterval(refresh, state.src === "demo" ? 2000 : 10000);
+  refreshTimer = setInterval(() => refresh(), state.src === "demo" ? 2000 : 10000);
 }
 
 /* ---------- demo judges simulation ---------- */
@@ -763,8 +864,46 @@ function simulate() {
   refresh();
 }
 
+/* ---------- check screen: all streams with «Начало», live / next, problems ---------- */
+let tabState = {}, tabCheckedAt = 0, tabSrc = "";
+const MARKS = { live: "идёт", upcoming: "скоро", next: "следующий" };
+function renderSchedule() {
+  if (!settings.length) { $("schedBox").innerHTML = ""; $("schedNotes").textContent = ""; return; }
+  const now = Date.now();
+  const chk = A.scheduleCheck(settings, now);
+  const notes = chk.notes.slice();
+  if (state.stream !== "auto") notes.unshift("На этом экране поток выбран вручную — расписание не действует (выберите «●» в списке потоков)");
+  notes.push("Сейчас в Актобе: " + A.fmtVenueDate(now) + " " + A.fmtVenueTime(now));
+  $("schedNotes").innerHTML = notes.map(A.esc).join("<br>");
+  $("schedBox").innerHTML = chk.rows.map(r => {
+    const probs = r.problems.slice();
+    if (tabState[r.stream.tab] === false) probs.push(`Нет вкладки «${r.stream.tab}»`);
+    const mark = chk.status === "manual" && r.mark === "live" ? "на экране" : MARKS[r.mark] || "";
+    return `<div class="${r.mark}">${mark ? `<span class="mk">${mark}</span>` : ""}` +
+      `<span class="when">${A.esc(r.when || "—")}</span>${A.esc(r.stream.title)} <span class="tab">· ${A.esc(r.stream.tab)}</span>` +
+      probs.map(p => `<div class="bad">⚠ ${A.esc(p)}</div>`).join("") + `</div>`;
+  }).join("");
+}
+async function checkTabs(force) {
+  if (!settings.length) return;
+  if (!force && tabSrc === state.src && Date.now() - tabCheckedAt < 60000) return;
+  tabCheckedAt = Date.now(); tabSrc = state.src;
+  $("tabCheckMsg").textContent = "Проверяю…";
+  try {
+    const tabs = [...new Set(settings.map(s => s.tab))];
+    const res = await Promise.all(tabs.map(t => A.tabExists(state.src, t).catch(() => null)));
+    tabState = {}; tabs.forEach((t, i) => (tabState[t] = res[i]));
+    const missing = res.filter(x => x === false).length, unknown = res.filter(x => x === null).length;
+    $("tabCheckMsg").textContent = missing ? `Нет вкладок: ${missing}` : unknown ? "Не удалось проверить (нет связи)" : "Все вкладки на месте ✓";
+  } catch (e) { $("tabCheckMsg").textContent = "Не удалось проверить: " + e.message; }
+  renderSchedule();
+}
+$("tabCheck").onclick = () => checkTabs(true);
+
 /* ---------- panel ---------- */
 function syncPanel() {
+  renderSchedule();
+  if ($("panel").classList.contains("open")) checkTabs(false);
   $("pSrc").value = state.src;
   $("pMode").value = state.mode;
   $("pFs").value = state.fs;
@@ -907,6 +1046,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fi
   simTimer = setInterval(simulate, 3500);
   // keep the "переход через N с" countdown ticking
   setInterval(() => { if (stream && pending[current.tab]) { computeRotation(); if (!pending[current.tab]) buildSteps(); render(false); } }, 1000);
+  setInterval(updateNet, 5000);
 })();
 </script>
 </body>

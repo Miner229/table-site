@@ -22,7 +22,7 @@ function loadCore() {
 const A = loadCore();
 // core.js runs in its own VM context, so its arrays have a different prototype: compare as plain data
 const plain = x => JSON.parse(JSON.stringify(x));
-const deq = (a, b, msg) => assert.deepEqual(plain(a), plain(b), msg);
+const deq = (a, b, msg) => (msg === undefined ? assert.deepEqual(plain(a), plain(b)) : assert.deepEqual(plain(a), plain(b), msg));
 const M_HEAD = ["№", "ФИО", "Год", "Клуб", "Старт", "Вольные", "Конь", "Кольца", "Прыжок", "Брусья", "Перекладина", "Сумма"];
 const F_HEAD = ["№", "ФИО", "Год", "Клуб", "Старт", "Прыжок", "Брусья", "Бревно", "Вольные", "Сумма"];
 
@@ -165,7 +165,8 @@ test("manual and time modes", () => {
   assert.equal(A.currentRotation(s, { rotation: 99, mode: "manual", times: [] }).rotation, 6, "clamped");
   assert.equal(A.currentRotation(s, { rotation: 3, mode: "auto", times: [] }).rotation, 3, "manual cell is a minimum in auto");
   const times = A.parseTimes("08:00 08:30 09:00 09:30 10:00 10:30");
-  const at = (h, m) => { const d = new Date(2026, 10, 27, h, m); return A.currentRotation(s, { rotation: 1, mode: "time", times }, null, d).rotation; };
+  // «Время ротаций» is Aktobe time (UTC+5), whatever the zone of the machine running the tests
+  const at = (h, m) => { const d = new Date(Date.UTC(2026, 10, 27, h - 5, m)); return A.currentRotation(s, { rotation: 1, mode: "time", times }, null, d).rotation; };
   assert.equal(at(7, 30), 1);
   assert.equal(at(8, 29), 1);
   assert.equal(at(8, 30), 2);
@@ -221,4 +222,152 @@ test("demo data: 10 gymnasts per apparatus, unique names", () => {
   assert.ok(Object.values(A.groupsAt(m, 1)).every(l => l.length === 10));
   assert.ok(Object.values(A.groupsAt(f, 1)).every(l => l.length === 10));
   deq(A.streamWarnings(m), []);
+});
+
+/* ---------------- scheduled streams («Начало», Aktobe time) ---------------- */
+// Venue time → timestamp: Aktobe is UTC+5 all year
+const AQT = (d, h, m) => Date.UTC(2026, 10, d, h - 5, m);
+const SCHEDULE = [
+  ["Пт 1", "27.11.2026 08:00"], ["Пт 2", "27.11.2026 12:15"],
+  ["Сб 1", "28.11.2026 07:30"], ["Сб 2", "28.11.2026 11:15"], ["Сб 3", "28.11.2026 15:00"], ["Сб 4", "28.11.2026 18:30"],
+  ["Вс 1", "29.11.2026 11:30"], ["Вс 2", "29.11.2026 15:00"], ["Вс 3", "29.11.2026 18:30"],
+];
+function scheduled(activeTab, extra) {
+  const rows = [["Поток", "Лист", "Пол", "Ротация", "Режим", "Время ротаций", "На экране", "Начало"]];
+  SCHEDULE.forEach(([t, start], i) => rows.push([t + " поток", t, i % 2 ? "Ж" : "М", "1", "авто", "", t === activeTab ? "да" : "", start]));
+  (extra || []).forEach(r => rows.push(r));
+  return A.parseSettings(rows);
+}
+const on = (settings, ms, g) => { const p = A.activeStream(settings, ms, g); return [p.stream && p.stream.tab, p.status]; };
+
+test("Начало: parsed in Aktobe time, several spellings, bad dates rejected", () => {
+  const t = AQT(27, 8, 0);
+  assert.equal(A.parseStart("27.11.2026 08:00"), t);
+  assert.equal(A.parseStart("27.11.2026 8:00:00"), t, "Google's own display of a date-time cell");
+  assert.equal(A.parseStart(" 27.11.26 08:00 "), t);
+  assert.equal(A.parseStart("2026-11-27 08:00"), t);
+  assert.equal(A.parseStart("27.11 08:00", AQT(1, 12, 0)), t, "year taken from now");
+  assert.equal(A.parseStart("31.02.2026 08:00"), null);
+  assert.equal(A.parseStart("завтра"), null);
+  assert.equal(A.parseStart(""), null);
+  const s = scheduled();
+  assert.equal(s[0].start, t);
+  assert.equal(s[0].startText, "27.11.2026 08:00");
+});
+
+test("active stream: switches at the exact minute of «Начало»", () => {
+  const s = scheduled();
+  deq(on(s, AQT(27, 12, 15) - 1), ["Пт 1", "live"], "12:14:59.999 — still the first stream");
+  deq(on(s, AQT(27, 12, 15)), ["Пт 2", "live"], "12:15:00 — the second one");
+  deq(on(s, AQT(28, 18, 30) - 60000), ["Сб 3", "live"]);
+  deq(on(s, AQT(28, 18, 30)), ["Сб 4", "live"]);
+  const p = A.activeStream(s, AQT(27, 9, 0));
+  assert.equal(p.next.tab, "Пт 2");
+  assert.equal(p.next.start, AQT(27, 12, 15), "the board schedules its switch for this moment");
+});
+
+test("active stream: before the first stream — the upcoming one with «Начало в 08:00»", () => {
+  const s = scheduled();
+  deq(on(s, AQT(27, 6, 45)), ["Пт 1", "upcoming"]);
+  assert.equal(A.startsLabel(A.activeStream(s, AQT(27, 6, 45)).stream, AQT(27, 6, 45)), "Начало в 08:00");
+  deq(on(s, AQT(20, 10, 0)), ["Пт 1", "upcoming"], "a week before");
+  assert.equal(A.startsLabel(A.activeStream(s, AQT(26, 20, 0)).stream, AQT(26, 20, 0)), "Начало 27.11 в 08:00", "another day → with the date");
+  deq(on(s, AQT(27, 8, 0)), ["Пт 1", "live"]);
+});
+
+test("active stream: crossing days — last stream stays until midnight, then the next day's first is upcoming", () => {
+  const s = scheduled();
+  deq(on(s, AQT(27, 23, 59)), ["Пт 2", "live"], "Friday evening: final results of the last stream");
+  deq(on(s, AQT(28, 0, 0)), ["Сб 1", "upcoming"], "after midnight: Saturday's first stream");
+  deq(on(s, AQT(28, 7, 29)), ["Сб 1", "upcoming"]);
+  deq(on(s, AQT(28, 7, 30)), ["Сб 1", "live"]);
+  deq(on(s, AQT(29, 9, 0)), ["Вс 1", "upcoming"], "Sunday starts late (11:30)");
+  deq(on(s, AQT(29, 23, 0)), ["Вс 3", "live"], "after the last stream of the competition");
+  deq(on(s, AQT(30, 12, 0)), ["Вс 3", "live"], "and the day after");
+  // the day boundary is Aktobe midnight, not UTC midnight
+  deq(on(s, Date.UTC(2026, 10, 27, 19, 30)), ["Сб 1", "upcoming"], "Fri 19:30 UTC = Sat 00:30 in Aktobe");
+  deq(on(s, Date.UTC(2026, 10, 27, 18, 30)), ["Пт 2", "live"], "Fri 18:30 UTC = Fri 23:30 in Aktobe");
+});
+
+test("active stream: «На экране = да» overrides the schedule exactly as before", () => {
+  const s = scheduled("Сб 2");   // a girls' stream
+  deq(on(s, AQT(27, 9, 0)), ["Сб 2", "manual"]);
+  deq(on(s, AQT(29, 18, 45)), ["Сб 2", "manual"]);
+  assert.equal(A.activeStream(s, AQT(27, 9, 0)).next, null, "no scheduled switch while «да» is set");
+  // judges: «да» on a girls' stream → a boys' judge gets the first boys' stream (the old rule)
+  deq(on(s, AQT(27, 9, 0), "M"), ["Пт 1", "manual"]);
+  deq(on(s, AQT(27, 9, 0), "F"), ["Сб 2", "manual"]);
+  // no «Начало» and no «да»: the first stream, as before
+  const plain = A.parseSettings([["Поток", "Лист", "Пол"], ["A", "A", "М"], ["B", "B", "М"]]);
+  deq(on(plain, AQT(27, 9, 0)), ["A", "default"]);
+});
+
+test("active stream: judges follow the latest stream of their gender", () => {
+  const s = scheduled();   // even rows М, odd rows Ж
+  deq(on(s, AQT(28, 11, 20), "F"), ["Сб 2", "live"]);
+  deq(on(s, AQT(28, 11, 20), "M"), ["Сб 1", "live"], "boys keep their last stream while girls compete");
+  deq(on(s, AQT(28, 15, 0), "M"), ["Сб 3", "live"]);
+});
+
+test("device in another time zone: same stream and same rotation as in Aktobe", () => {
+  const s = scheduled();
+  const st = A.parseSettings([["Поток", "Лист", "Пол", "Режим", "Время ротаций"], ["X", "X", "М", "время", "12:15 12:50 13:25"]])[0];
+  const stream = A.parseStream(tab(M_HEAD, SIX.map(start => ({ start, n: 1 }))), "M", 1);
+  const probe = () => [on(s, AQT(27, 12, 15)), on(s, AQT(28, 0, 10)),
+    A.currentRotation(stream, st, null, new Date(AQT(27, 12, 55))).rotation, A.fmtVenueTime(AQT(27, 12, 15)), A.venueMinutes(AQT(27, 8, 0))];
+  const expected = [["Пт 2", "live"], ["Сб 1", "upcoming"], 2, "12:15", 480];
+  const tz = process.env.TZ;
+  const localHours = new Set();
+  try {
+    for (const zone of ["UTC", "America/New_York", "Asia/Tokyo", "Pacific/Kiritimati", "Europe/Moscow"]) {
+      process.env.TZ = zone;
+      localHours.add(new Date(AQT(27, 12, 0)).getHours());   // the device clock really differs…
+      deq(probe(), expected, zone);                          // …but the result does not
+    }
+  } finally {
+    if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+  }
+  assert.ok(localHours.size >= 4, "the time zone switch took effect");
+});
+
+test("check screen: live / next marks, missing Начало, same time, bad date, duplicate tab", () => {
+  const s = scheduled(null, [
+    ["Без времени", "Пусто", "М", "1", "авто", "", "", ""],
+    ["Дубль", "Дубль", "М", "1", "авто", "", "", "27.11.2026 12:15"],
+    ["Опечатка", "Опечатка", "М", "1", "авто", "", "", "27.11.2026 25:00"],
+    ["Ещё Пт 1", "Пт 1", "М", "1", "авто", "", "", "30.11.2026 10:00"],
+  ]);
+  const chk = A.scheduleCheck(s, AQT(27, 9, 0));
+  const row = title => chk.rows.find(r => r.stream.title === title);
+  assert.equal(row("Пт 1 поток").mark, "live");
+  assert.equal(row("Пт 1 поток").when, "27.11 08:00");
+  assert.ok(row("Без времени").problems.includes("Нет «Начало»"));
+  assert.ok(row("Дубль").problems.some(p => /То же «Начало», что у «Пт 2 поток»/.test(p)));
+  assert.ok(row("Пт 2 поток").problems.some(p => /То же «Начало»/.test(p)));
+  assert.ok(row("Опечатка").problems.some(p => /Не понятно «Начало»/.test(p)));
+  assert.ok(row("Ещё Пт 1").problems.some(p => /указана у 2 потоков/.test(p)));
+  assert.equal(chk.rows.filter(r => r.mark === "next").length, 1);
+  const manual = A.scheduleCheck(scheduled("Сб 1"), AQT(27, 9, 0));
+  assert.equal(manual.status, "manual");
+  assert.ok(manual.notes.some(n => /расписание «Начало» не действует/.test(n)));
+  assert.equal(manual.rows.find(r => r.stream.tab === "Сб 1").mark, "live");
+});
+
+/* ---------------- start-list separator labels ---------------- */
+test("separator labels from real start lists: typo, trailing space, case — but never a surname", () => {
+  ["Вольные упражения", "Параллельные Брусья ", "Опорный Прыжок", "Разновысокие брусья", "Вольные упражнения",
+    "  ВОЛЬНЫЕ   упражнения.", "Конь-махи", "Конь махи", "Брусья разной высоты", "перекладина", "Бревно:"]
+    .forEach(t => assert.ok(A.isApparatusLabel(t), t));
+  ["Вольнов Иван", "Кольцов Пётр", "Брусилов Артём", "Конев Олег", "упражнения", "Опорный", "2018", "Юг", "Иванов Прыжок", ""]
+    .forEach(t => assert.ok(!A.isApparatusLabel(t), t));
+  const v = [
+    ["№", "ФИО", "Год", "Разряд", "Регион/Клуб"],
+    ["", "Вольные упражения"], ["1", "Вольнов Иван", "2017", "3 юн", "Актобе"],
+    ["", "Параллельные Брусья "], ["2", "Брусилов Артём", "2017", "3 юн", "Актобе"],
+    ["", "Опорный Прыжок"], ["3", "Конев Олег", "2016", "2 юн", "Актау"],
+  ];
+  const s = A.parseStream(v, "M", 1);
+  deq(s.gymnasts.map(g => [g.name, g.start]), [["Вольнов Иван", "floor"], ["Брусилов Артём", "pbars"], ["Конев Олег", "vault"]]);
+  const f = A.parseStream([["№", "ФИО", "Год"], ["", "Разновысокие брусья"], ["1", "Петрова Анна", "2016"]], "F", 1);
+  assert.equal(f.gymnasts[0].start, "ubars");
 });

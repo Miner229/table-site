@@ -176,7 +176,51 @@ function onOpen() {
     .addItem("Создать новые коды (старые перестанут работать)", "resetKeys")
     .addSeparator()
     .addItem("Подготовить вкладку «Настройки»", "setupSettings")
+    .addItem("Подготовить вкладки потоков", "prepareStreamTabs")
     .addToUi();
+}
+
+/* Freshly imported start lists have only № | ФИО | Год | Разряд | Регион/Клуб.
+ * For every tab listed in «Настройки» this appends the missing score columns (by the stream's Пол)
+ * and «Сумма» to the right of the last used column. Existing cells are never changed. */
+var SCORE_HEADERS = {
+  M: ["Вольные", "Конь", "Кольца", "Прыжок", "Брусья", "Перекладина"],
+  F: ["Прыжок", "Брусья", "Бревно", "Вольные"]
+};
+function prepareStreamTabs_() {
+  var ss = SpreadsheetApp.getActive();
+  var st = streams_();
+  var report = [];
+  Object.keys(st).forEach(function (tab) {
+    var g = st[tab].gender;
+    var sh = ss.getSheetByName(tab);
+    if (!sh) { report.push("«" + tab + "»: вкладки нет"); return; }
+    var values = sh.getDataRange().getDisplayValues();
+    var hi;
+    try { hi = headerIndex_(values); } catch (e) { report.push("«" + tab + "»: нет строки заголовков с «ФИО»"); return; }
+    var head = values[hi];
+    var nameCol = head.findIndex(function (c) { return /^фио/.test(norm_(c)); });
+    var startCol = head.findIndex(function (c) { return /старт/.test(norm_(c)); });
+    var have = {}, hasSum = false;
+    head.forEach(function (c, i) {
+      if (/^сумм/.test(norm_(c))) { hasSum = true; return; }
+      if (i === nameCol || i === startCol) return;
+      var a = appFromText_(c, g);
+      if (a) have[a] = true;
+    });
+    var add = [];
+    SCORE_HEADERS[g].forEach(function (name) { if (!have[appFromText_(name, g)]) add.push(name); });
+    if (!hasSum) add.push("Сумма");
+    if (!add.length) { report.push("«" + tab + "»: всё на месте"); return; }
+    var col = Math.max(sh.getLastColumn(), values.length ? values[0].length : 0) + 1;   // first empty column
+    add.forEach(function (name, k) { sh.getRange(hi + 1, col + k).setValue(name); });
+    report.push("«" + tab + "» (" + (g === "F" ? "Ж" : "М") + "): добавлено " + add.join(", "));
+  });
+  return report;
+}
+function prepareStreamTabs() {
+  var report = prepareStreamTabs_();
+  SpreadsheetApp.getUi().alert("Вкладки потоков", report.length ? report.join("\n") : "В «Настройках» нет потоков.", SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 function randomKey_() {
@@ -229,7 +273,7 @@ function setupSettings() {
   var ss = SpreadsheetApp.getActive();
   if (ss.getSheetByName(SETTINGS_TAB)) { SpreadsheetApp.getUi().alert("Вкладка «Настройки» уже есть."); return; }
   var sh = ss.insertSheet(SETTINGS_TAB, 0);
-  sh.getRange(1, 1, 1, 7).setValues([["Поток", "Лист", "Пол", "Ротация", "Режим", "Время ротаций", "На экране"]]).setFontWeight("bold");
-  sh.getRange(2, 1, 1, 7).setValues([["Пятница · Поток 1", "Пятница 1", "М", 1, "ручной", "", "да"]]);
+  sh.getRange(1, 1, 1, 8).setValues([["Поток", "Лист", "Пол", "Ротация", "Режим", "Время ротаций", "На экране", "Начало"]]).setFontWeight("bold");
+  sh.getRange(2, 1, 1, 8).setValues([["Пятница · Поток 1", "Пятница 1", "М", 1, "ручной", "", "", "27.11.2026 08:00"]]);
   sh.setFrozenRows(1);
 }

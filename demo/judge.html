@@ -187,20 +187,42 @@ async function writeScore(g, value, expected) {
 }
 
 /* ---------- load ---------- */
+// Same rule as the board (A.activeStream): «да» override, else «Начало» in Aktobe time.
+let pick = null, autoPick = null, switchT = null, failSince = 0;
 async function load() {
   if (!me) return;   // logged out
   try {
-    settings = (await A.loadSettings(SRC)).filter(s => s.gender === me.gender);
+    const all = await A.loadSettings(SRC);
+    settings = all.filter(s => s.gender === me.gender);
     if (!settings.length) throw new Error("Нет потоков для этого снаряда");
-    current = (streamChoice !== "auto" && settings.find(s => s.tab === streamChoice)) || settings.find(s => s.active) || settings[0];
-    stream = await A.loadStream(SRC, current);
+    autoPick = A.activeStream(all, Date.now(), me.gender);
+    const chosen = streamChoice !== "auto" && settings.find(s => s.tab === streamChoice);
+    pick = chosen ? { stream: chosen, status: "chosen", next: null } : autoPick;
+    let target = pick.stream;
+    // never swap the stream under a score the judge is still typing — that row belongs to the shown stream
+    if (current && target.tab !== current.tab && document.querySelector(".g input[data-dirty]")) {
+      target = settings.find(s => s.tab === current.tab) || current;
+    }
+    const data = await A.loadStream(SRC, target);
+    if (current && target.tab !== current.tab && document.querySelector(".g input[data-dirty]")) return;   // started typing meanwhile
+    current = target; stream = data;
     info = A.currentRotation(stream, current, null);
     render();
+    failSince = 0;
     setFoot(true);
+    clearTimeout(switchT);
+    const dt = pick.next ? pick.next.start - Date.now() : 0;
+    if (dt > 0 && dt < 6 * 3600000) switchT = setTimeout(load, dt + 300);   // switch at the same minute as the board
   } catch (e) {
     console.error(e);
-    setFoot(false, e.message);
+    // keep the list and typed scores; only after ~60 s of failures say so
+    if (!failSince) failSince = Date.now();
+    if (!stream || Date.now() - failSince >= 60000) setFoot(false, e.message);
   }
+}
+function rotText() {
+  return `Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}` +
+    (pick && pick.status === "upcoming" ? ` · <b>${A.esc(A.startsLabel(current, Date.now()))}</b>` : "");
 }
 
 function setFoot(ok, msg) {
@@ -261,13 +283,13 @@ function render() {
       <div class="lock">🔒 Вы можете ставить оценки только на этом снаряде</div>
       <div class="controls">
         <select id="streamSel">
-          <option value="auto">● ${A.esc((settings.find(s => s.active) || settings[0]).title)}</option>
+          <option value="auto">● ${A.esc(autoPick.stream.title)}</option>
           ${settings.map(s => `<option value="${A.esc(s.tab)}">${A.esc(s.title)}</option>`).join("")}
         </select>
         <button class="btn ${showAll ? "on" : ""}" id="allBtn">Весь поток</button>
       </div>
       ${A.streamWarnings(stream).map(w => `<div class="rotline" style="color:#ff9b8b">⚠ ${A.esc(w)}</div>`).join("")}
-      <div class="rotline" id="rotline">Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}</div>
+      <div class="rotline" id="rotline">${rotText()}</div>
     </div>`;
 
   // don't swap the list while the judge is typing a score — wait until it's saved
@@ -297,7 +319,7 @@ function render() {
       el.classList.toggle("saved", raw !== "");
     });
     $("status").outerHTML = statusHtml;
-    $("rotline").innerHTML = `Ротация <b>${info.rotation}</b> из ${info.total} · режим: ${A.ROT_MODES[info.mode]}`;
+    $("rotline").innerHTML = rotText();
   }
 }
 

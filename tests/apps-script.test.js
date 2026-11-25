@@ -28,10 +28,11 @@ function setup() {
     getDataRange: () => ({ getDisplayValues: () => tabs[name].map(r => r.map(String)) }),
     getRange: (r, c) => ({
       getDisplayValue: () => (tabs[name][r - 1][c - 1] ?? ""),
-      setValue: v => { tabs[name][r - 1][c - 1] = String(v); },
+      setValue: v => { while (tabs[name].length < r) tabs[name].push([]); tabs[name][r - 1][c - 1] = String(v); },
       clearContent: () => { tabs[name][r - 1][c - 1] = ""; },
     }),
     appendRow: row => log.push(row),
+    getLastColumn: () => Math.max(0, ...tabs[name].map(r => { let n = r.length; while (n && r[n - 1] === "") n--; return n; })),
     setFrozenRows: () => {},
   });
   const ctx = {
@@ -159,4 +160,42 @@ test("every code opens exactly one apparatus column and no other", () => {
     const after = tabs["Пятница 1"][2];
     after.forEach((c, i) => { if (i !== col) assert.equal(c, row[i], `${app} code changed column ${i}`); });
   });
+});
+
+test("«Подготовить вкладки потоков»: adds missing score columns + Сумма, never touches existing cells", () => {
+  const { ctx, tabs, key, post } = setup();
+  const imported = () => [
+    ["№", "ФИО", "Год", "Разряд", "Регион/Клуб"],
+    ["", "Вольные упражения", "", "", ""],
+    ["1", "Вольнов Иван", "2017", "3 юн", "Актобе"],
+    ["2", "Брусилов Артём", "2017", "3 юн", "Актау"],
+  ];
+  tabs["Импорт М"] = imported();
+  tabs["Импорт Ж"] = imported();
+  tabs["Настройки"].push(["Сб 1", "Импорт М", "М", "1", "авто", "", ""], ["Сб 2", "Импорт Ж", "Ж", "1", "авто", "", ""],
+    ["Вс 9", "Нет такой", "М", "1", "авто", "", ""]);
+  const before = JSON.stringify(tabs);
+  const report = ctx.prepareStreamTabs_();
+
+  assert.deepEqual(tabs["Импорт М"][0], ["№", "ФИО", "Год", "Разряд", "Регион/Клуб", "Вольные", "Конь", "Кольца", "Прыжок", "Брусья", "Перекладина", "Сумма"]);
+  assert.deepEqual(tabs["Импорт Ж"][0], ["№", "ФИО", "Год", "Разряд", "Регион/Клуб", "Прыжок", "Брусья", "Бревно", "Вольные", "Сумма"]);
+  // existing cells unchanged
+  const old = JSON.parse(before);
+  ["Импорт М", "Импорт Ж"].forEach(t => old[t].forEach((r, i) => r.forEach((c, j) => assert.equal(tabs[t][i][j], c))));
+  assert.deepEqual(tabs["Пятница 1"], old["Пятница 1"], "a complete tab is left alone");
+  // only Сумма was missing in «Пятница 2»
+  assert.deepEqual(tabs["Пятница 2"][0].slice(-2), ["Перекладина", "Сумма"]);
+  assert.ok(report.some(r => /«Нет такой»: вкладки нет/.test(r)));
+  assert.ok(report.some(r => /«Пятница 1»: всё на месте/.test(r)));
+
+  // running it again adds nothing
+  const once = JSON.stringify(tabs);
+  ctx.prepareStreamTabs_();
+  assert.equal(JSON.stringify(tabs), once);
+
+  // the new columns work for judges right away
+  assert.equal(post({ tab: "Импорт М", row: 3, name: "Вольнов Иван", key: key["M:rings"], value: "9.1", expected: "" }).ok, true);
+  assert.equal(tabs["Импорт М"][2][7], "9.1");
+  assert.equal(post({ tab: "Импорт Ж", row: 4, name: "Брусилов Артём", key: key["F:beam"], value: "8.4", expected: "" }).ok, true);
+  assert.equal(tabs["Импорт Ж"][3][7], "8.4");
 });

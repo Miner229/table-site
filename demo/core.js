@@ -2,7 +2,8 @@
  *
  * Data model (one Google Sheet):
  *   «Настройки» tab — one row per stream:
- *       Поток | Лист | Пол | Ротация | Режим | Время ротаций | На экране
+ *       Поток | Лист | Пол | Ротация | Режим | Время ротаций | На экране | Начало
+ *     «Начало» (optional) = «27.11.2026 08:00», venue time. See activeStream().
  *   one tab per stream — header row with «ФИО» (first row of the tab), e.g.
  *       № | ФИО | Год | Клуб | Разряд | Старт | Вольные | Конь | Кольца | Прыжок | Брусья | Перекладина | Сумма
  *     «Старт» = the apparatus the gymnast's group starts on. Instead of the column you can also
@@ -38,6 +39,40 @@ const ORDER = {
 
 const ROT_MODES = { manual: "Ручная", auto: "Авто (по оценкам)", time: "По времени" };
 
+/* ---------- venue time ----------
+ * All clock times in the sheet («Начало», «Время ротаций») are Aktobe time (Asia/Aqtobe).
+ * Aktobe is UTC+5 all year (no daylight saving), so a fixed offset is exact and does not depend
+ * on the time zone of the TV, phone or laptop showing the page. */
+const VENUE = { tz: "Asia/Aqtobe", offsetMin: 5 * 60 };
+const DAY_MS = 86400000;
+function toMs(now) { return now == null ? Date.now() : +now; }
+function venueParts(now) {
+  const d = new Date(toMs(now) + VENUE.offsetMin * 60000);
+  return { y: d.getUTCFullYear(), mo: d.getUTCMonth() + 1, d: d.getUTCDate(), h: d.getUTCHours(), mi: d.getUTCMinutes() };
+}
+function venueMinutes(now) { const p = venueParts(now); return p.h * 60 + p.mi; }
+function venueDay(now) { return Math.floor((toMs(now) + VENUE.offsetMin * 60000) / DAY_MS); }
+const pad2 = n => String(n).padStart(2, "0");
+function fmtVenueTime(ms) { const p = venueParts(ms); return pad2(p.h) + ":" + pad2(p.mi); }
+function fmtVenueDate(ms) { const p = venueParts(ms); return pad2(p.d) + "." + pad2(p.mo); }
+// «27.11.2026 08:00», «27.11.26 8:00», «27.11 08:00» (year of `now`), «2026-11-27 08:00», optional «:ss».
+// Returns a timestamp (ms) or null.
+function parseStart(text, now) {
+  const t = String(text == null ? "" : text).trim();
+  if (!t) return null;
+  let y, mo, d, h, mi, m;
+  if ((m = t.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?[,\s]+(?:в\s+)?(\d{1,2})[:.](\d{2})(?:[:.]\d{2})?$/i))) {
+    d = +m[1]; mo = +m[2]; y = m[3] ? +m[3] : venueParts(now).y; h = +m[4]; mi = +m[5];
+    if (y < 100) y += 2000;
+  } else if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2}):(\d{2})(?::\d{2})?$/))) {
+    y = +m[1]; mo = +m[2]; d = +m[3]; h = +m[4]; mi = +m[5];
+  } else return null;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
+  const ms = Date.UTC(y, mo - 1, d, h, mi) - VENUE.offsetMin * 60000;
+  const back = venueParts(ms);
+  return back.d === d && back.mo === mo ? ms : null;   // rejects 31.02
+}
+
 /* ---------- small helpers ---------- */
 function norm(s) {
   return String(s == null ? "" : s).toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
@@ -63,15 +98,16 @@ function apparatusFromText(text, gender) {
   if (/бревн/.test(t)) return "beam";
   return null;
 }
-// A cell that is exactly an apparatus name (used for start-group separator rows).
-// Strict on purpose: a surname like «Вольнов» must never be read as «Вольные».
-const APP_LABELS = new Set([
-  "вольные", "вольные упражнения", "вольные упр", "конь", "конь-махи", "конь махи", "махи", "кольца",
-  "прыжок", "опорный прыжок", "брусья", "параллельные брусья", "брусья разной высоты", "разновысокие брусья",
-  "перекладина", "бревно",
-]);
+// A cell that is an apparatus name (used for start-group separator rows).
+// Every word must be an apparatus word, so a surname like «Вольнов Иван» is never read as «Вольные».
+// Tolerates case, extra/trailing spaces, «ё», trailing punctuation and the «упражения» typo.
+const LABEL_MAIN = /^(вольные|конь|махи|кольца|прыжок|брусья|перекладина|бревно)$/;
+const LABEL_WORD = /^(вольные|вольное|конь|махи|кольца|прыжок|опорный|брусья|параллельные|разновысокие|разной|высоты|перекладина|бревно|упр|упражн?е?н?ия|упражнение)$/;
 function isApparatusLabel(text) {
-  return APP_LABELS.has(norm(text).replace(/[.:;]+$/, ""));
+  const t = norm(text).replace(/[.:;,!]+$/, "").replace(/\s*-\s*/g, " ");
+  if (!t || t.length > 40) return false;
+  const words = t.split(" ").map(w => w.replace(/\.$/, ""));
+  return words.every(w => LABEL_WORD.test(w)) && words.some(w => LABEL_MAIN.test(w)) && apparatusFromText(t) != null;
 }
 // «Фамилия Имя»: at least two words, letters only — not a category label like «2018», «3 взрослый», «Юг»
 function looksLikePerson(text) {
@@ -119,7 +155,7 @@ function parseSettings(values) {
   const col = re => h.findIndex(c => re.test(c));
   const c = {
     title: col(/поток|назв/), tab: col(/лист/), gender: col(/^пол/), rot: col(/^ротац|^тек/),
-    mode: col(/режим/), times: col(/время/), active: col(/экран|актив/),
+    mode: col(/режим/), times: col(/время/), active: col(/экран|актив/), start: col(/^начал/),
   };
   const get = (r, k) => (c[k] >= 0 ? String(r[c[k]] == null ? "" : r[c[k]]).trim() : "");
   const out = [];
@@ -135,9 +171,69 @@ function parseSettings(values) {
       mode: /авто|auto/.test(m) ? "auto" : /врем|time/.test(m) ? "time" : "manual",
       times: parseTimes(get(r, "times")),
       active: /^(да|yes|1|\+|x|х|✓)/.test(norm(get(r, "active"))),
+      startText: get(r, "start"),
+      start: parseStart(get(r, "start")),
     });
   });
   return out;
+}
+
+/* ---------- which stream is on now ----------
+ * One rule for the board, the judges and the secretary, so they all switch at the same moment.
+ *  1. «На экране = да» on any row wins (manual override — exactly the old behaviour).
+ *  2. Otherwise «Начало»: the stream with the latest Начало ≤ now. It stays on (with its final
+ *     results) until the next one starts.
+ *  3. Before the first stream of a day (or of the competition): the upcoming one, status "upcoming".
+ *  4. No «Начало» at all: the first stream.
+ * gender (optional): judges only see streams of their gender; the «да» override still applies
+ * to the whole sheet, so a judge behaves exactly as before while «да» is used.
+ * Returns { stream, status: "manual" | "live" | "upcoming" | "default" | "none", next } —
+ * next = the stream that starts after now (null if none); next.start = when to switch. */
+function activeStream(settings, now, gender) {
+  const t = toMs(now);
+  const list = gender ? settings.filter(s => s.gender === gender) : settings.slice();
+  if (!list.length) return { stream: null, status: "none", next: null };
+  if (settings.some(s => s.active)) return { stream: list.find(s => s.active) || list[0], status: "manual", next: null };
+  const timed = list.filter(s => s.start != null).sort((a, b) => a.start - b.start);
+  if (!timed.length) return { stream: list[0], status: "default", next: null };
+  let live = null;
+  timed.forEach(s => { if (s.start <= t) live = s; });
+  const next = timed.find(s => s.start > t) || null;
+  if (!live || (next && venueDay(next.start) === venueDay(t) && venueDay(live.start) < venueDay(t))) {
+    return { stream: next, status: "upcoming", next };
+  }
+  return { stream: live, status: "live", next };
+}
+// «Начало в 08:00» (today) / «Начало 27.11 в 08:00» for a stream that has not started yet
+function startsLabel(st, now) {
+  if (!st || st.start == null) return "";
+  return "Начало " + (venueDay(st.start) === venueDay(now) ? "" : fmtVenueDate(st.start) + " ") + "в " + fmtVenueTime(st.start);
+}
+// For the check screen: every stream with its Начало, which one is on now / next, and problems.
+function scheduleCheck(settings, now) {
+  const pick = activeStream(settings, now);
+  const manual = settings.filter(s => s.active);
+  const anyStart = settings.some(s => s.start != null || s.startText);
+  const notes = [];
+  if (manual.length) notes.push(`«На экране = да» у «${manual.map(s => s.title).join("», «")}» — расписание «Начало» не действует`);
+  if (manual.length > 1) notes.push("«да» стоит у нескольких потоков — показывается первый");
+  if (!anyStart && !manual.length) notes.push("Не заполнено «Начало» — показывается первый поток");
+  const rows = settings.map(s => {
+    const problems = [];
+    if (s.startText && s.start == null) problems.push(`Не понятно «Начало»: «${s.startText}» (нужно 27.11.2026 08:00)`);
+    else if (!s.startText && anyStart) problems.push("Нет «Начало»");
+    if (s.start != null) {
+      const same = settings.filter(o => o !== s && o.start === s.start);
+      if (same.length) problems.push(`То же «Начало», что у «${same.map(o => o.title).join("», «")}»`);
+    }
+    const tabs = settings.filter(o => o.tab === s.tab).length;
+    if (tabs > 1) problems.push(`Вкладка «${s.tab}» указана у ${tabs} потоков`);
+    let mark = "";
+    if (s === pick.stream) mark = pick.status === "upcoming" ? "upcoming" : "live";
+    else if (s === pick.next) mark = "next";
+    return { stream: s, mark, when: s.start != null ? fmtVenueDate(s.start) + " " + fmtVenueTime(s.start) : "", problems };
+  });
+  return { rows, notes, status: pick.status };
 }
 
 /* ---------- stream tab ---------- */
@@ -218,8 +314,7 @@ function autoRotation(stream) {
   return Math.min(r, n);
 }
 function timeRotation(times, n, now) {
-  const d = now || new Date();
-  const m = d.getHours() * 60 + d.getMinutes();
+  const m = venueMinutes(now);   // «Время ротаций» is Aktobe time, whatever the device's time zone
   const passed = times.filter(t => t <= m).length;
   return Math.max(1, Math.min(n, passed || 1));
 }
@@ -297,13 +392,22 @@ function gvizUrl(tab) {
   return `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&headers=1&sheet=${
     encodeURIComponent(tab)}&_=${Date.now()}`;
 }
-async function gvizValues(tab) {
-  const res = await fetch(gvizUrl(tab), { cache: "no-store" });
+// Reads give up after 20 s, so a hung request never blocks the next refresh (writes are not touched).
+async function fetchRead(url) {
+  const ctl = typeof AbortController === "function" ? new AbortController() : null;
+  const t = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
+  try { return await fetch(url, { cache: "no-store", signal: ctl ? ctl.signal : undefined }); }
+  catch (e) { throw new Error(e && e.name === "AbortError" ? "Нет ответа от сервера" : "Нет связи"); }
+  finally { if (t) clearTimeout(t); }
+}
+async function gvizText(tab) {
+  const res = await fetchRead(gvizUrl(tab));
   if (!res.ok) throw new Error("Нет доступа к Google-таблице (" + res.status + ")");
   const text = await res.text();
   if (/^\s*</.test(text)) throw new Error("Google-таблица закрыта: включите доступ «Все, у кого есть ссылка»");
-  return parseCSV(text);
+  return text;
 }
+async function gvizValues(tab) { return parseCSV(await gvizText(tab)); }
 
 function scriptUrl() {
   const p = new URLSearchParams(location.search).get("api");
@@ -313,7 +417,7 @@ function scriptUrl() {
 async function scriptGet(params) {
   const url = scriptUrl();
   if (!url) throw new Error("Не указан адрес скрипта (api)");
-  const res = await fetch(url + "?" + new URLSearchParams(params), { cache: "no-store" });
+  const res = await fetchRead(url + "?" + new URLSearchParams(params));
   const j = await res.json();
   if (!j.ok) throw new Error(j.error || "Ошибка сервера");
   return j;
@@ -382,10 +486,7 @@ function demoInit(force) {
   if (d && !force) return d;
   // for the «по времени» variant: a new rotation every 2 minutes starting now
   const t0 = new Date();
-  const times = Array.from({ length: 6 }, (_, i) => {
-    const t = new Date(t0.getTime() + i * 120000);
-    return String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
-  }).join(" ");
+  const times = Array.from({ length: 6 }, (_, i) => fmtVenueTime(t0.getTime() + i * 120000)).join(" ");
   d = {
     settings: [
       ["Поток", "Лист", "Пол", "Ротация", "Режим", "Время ротаций", "На экране"],
@@ -420,6 +521,14 @@ async function loadSettings(src) {
   if (src === "script") return parseSettings((await scriptGet({ action: "settings" })).values);
   return parseSettings(await gvizValues(CONFIG.SETTINGS_TAB));
 }
+// Does the stream's tab exist? Google's CSV export silently returns the FIRST sheet for an unknown
+// tab name, so compare with a name that certainly does not exist.
+async function tabExists(src, tab) {
+  if (src === "demo") return !!demoInit().tabs[tab];
+  if (src === "script") { try { await scriptGet({ action: "tab", tab }); return true; } catch (e) { return false; } }
+  const [a, b] = await Promise.all([gvizText(tab), gvizText("__нет_такой_вкладки_" + Date.now())]);
+  return a !== b;
+}
 async function loadStream(src, st) {
   if (src === "demo") return parseStream(demoInit().tabs[st.tab] || [], st.gender, 1);
   if (src === "script") return parseStream((await scriptGet({ action: "tab", tab: st.tab })).values, st.gender, 1);
@@ -433,6 +542,8 @@ global.ArtVin = {
   streamWarnings, isApparatusLabel, looksLikePerson, parseTimes,
   scriptGet, scriptPost, scriptUrl, sameScore,
   demoInit, demoSave, randomScore, DEMO_KEY,
-  loadSettings, loadStream,
+  loadSettings, loadStream, tabExists,
+  VENUE, venueParts, venueMinutes, venueDay, fmtVenueTime, fmtVenueDate, parseStart,
+  activeStream, startsLabel, scheduleCheck,
 };
 })(window);
