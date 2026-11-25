@@ -144,13 +144,11 @@ const UI = "artvin-judge-ui";
 
 let me = null;              // { gender, app }
 let settings = [], current = null, stream = null, info = null;
-let showAll = false;
+const showAll = false;   // judges see only the group on their apparatus («Весь поток» removed)
 let lastRot = null, newGroupUntil = 0;
 // One stream runs at a time: judges always follow the stream marked «На экране».
 // A manual pick lasts only until the page is reopened, so nobody is left on yesterday's stream.
 const streamChoice = "auto";   // the organiser picks the stream (button «Поток» on the board)
-try { const u = JSON.parse(localStorage.getItem(UI)) || {}; showAll = !!u.showAll; } catch (e) {}
-const saveUI = () => { try { localStorage.setItem(UI, JSON.stringify({ showAll })); } catch (e) {} };
 
 /* ---------- identity (the key decides the apparatus; it cannot be changed on this page) ---------- */
 async function whoami() {
@@ -255,18 +253,8 @@ function render() {
   const mine = groups[me.app] || [];
   const order = A.ORDER[me.gender];
 
-  // which group(s) to show
-  let sections;
-  if (showAll) {
-    sections = order.map(start => ({
-      title: "Старт: " + A.APPARATUS[start].short + (A.appAtRotation(start, info.rotation, me.gender) === me.app ? " · сейчас у вас" : ""),
-      list: stream.gymnasts.filter(g => g.start === start),
-    })).filter(s => s.list.length);
-    const loose = stream.gymnasts.filter(g => !g.start);
-    if (loose.length) sections.push({ title: "Без стартового снаряда", list: loose });
-  } else {
-    sections = [{ title: "Сейчас на снаряде", list: mine }];
-  }
+  // only the group that is on this apparatus now
+  const sections = [{ title: "Сейчас на снаряде", list: mine }];
 
   // rotation status: done / waiting for others / new group / finished
   if (lastRot != null && info.rotation > lastRot) {
@@ -299,7 +287,6 @@ function render() {
       <div class="lock">🔒 Вы можете ставить оценки только на этом снаряде</div>
       <div class="controls">
         <div class="stream-now" id="streamNow">Поток: <b>${A.esc(current.title)}</b></div>
-        <button class="btn ${showAll ? "on" : ""}" id="allBtn">Весь поток</button>
       </div>
       ${A.streamWarnings(stream).map(w => `<div class="rotline" style="color:#ff9b8b">⚠ ${A.esc(w)}</div>`).join("")}
       <div class="rotline" id="rotline">${rotText()}</div>
@@ -317,7 +304,6 @@ function render() {
       <div class="group-title">${A.esc(s.title)}</div>
       ${s.list.length ? s.list.map((g, i) => rowHtml(g, i + 1)).join("") : '<div class="empty">На этом снаряде сейчас никого нет</div>'}
     `).join("");
-    $("allBtn").onclick = () => { showAll = !showAll; saveUI(); renderedSig = ""; render(); };
   } else {
     // refresh values without disturbing what the judge is typing
     document.querySelectorAll(".g").forEach(el => {
