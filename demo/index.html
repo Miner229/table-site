@@ -152,10 +152,11 @@ main {
 .row .name { padding: 0 .4em 0 .5em; white-space: nowrap; overflow: hidden; }
 .row .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .name b { font-weight: 800; letter-spacing: .02em; }
-.row .name i { font-style: normal; font-weight: 800; }
+.row .name i { font-style: normal; font-weight: 800; letter-spacing: .02em; }   /* first name exactly as bold as the surname */
+/* scores: plain, no gold — not even on the 1st-place row */
 .row .score {
   justify-content: center; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .01em;
-  background: rgba(242,189,87,.1); color: var(--gold-1); border-left: 1px solid rgba(242,189,87,.25);
+  background: transparent; color: #fff; border-left: 1px solid rgba(255,255,255,.1);
 }
 .row.wait .score, .row.dns .score { font-size: .42em; font-weight: 600; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; background: transparent; }
 .row.wait .place, .row.dns .place { background: #1a1712; color: var(--muted); }
@@ -164,8 +165,8 @@ main {
 
 .row.p1 { background: var(--gold-grad); color: #1a1205; border-bottom-color: rgba(0,0,0,.25); }
 .row.p1 .place { background: #1a1205; color: var(--gold-2); }
-/* 1st place: gold covers place + name only; the score cell keeps its normal look */
-.row.p1 .score { background: linear-gradient(rgba(242,189,87,.1), rgba(242,189,87,.1)), #0e0c09; }
+/* 1st place: gold covers place + name only; the score cell looks like every other score */
+.row.p1 .score { background: #0e0c09; color: #fff; border-left-color: rgba(255,255,255,.1); }
 
 .row.fresh::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -336,12 +337,12 @@ body.light .row:nth-child(even) { background: #f8f6f1; }
 body.light .row:last-child { border-bottom-color: #ddd2bb; }
 body.light .row .place { background: #eee8db; color: #111; }
 body.light .row .place:empty { background: transparent; }
-body.light .row .score { background: #fbf4e3; color: #111; border-left-color: #ecdfc0; }
+body.light .row .score { background: transparent; color: #111; border-left-color: #e6dfcf; }
 body.light .row.wait .score, body.light .row.dns .score { color: #8a8273; background: transparent; }
 body.light .row.wait .name, body.light .row.dns .name { color: #555; }
 body.light .row.p1 { background: var(--gold-grad); color: #1a1205; }
 body.light .row.p1 .place { background: #1a1205; color: var(--gold-2); }
-body.light .row.p1 .score { background: #fbf4e3; }
+body.light .row.p1 .score { background: #fff; color: #111; border-left-color: #e6dfcf; }
 body.light .row.fresh::after { box-shadow: inset 0 0 0 3px var(--gold-3); background: rgba(242,189,87,.16); }
 body.light #rotOverlay { background: radial-gradient(ellipse at center, rgba(255,250,240,.98), rgba(255,255,255,.99) 70%); }
 body.light #rotOverlay .moves { color: #111; }
@@ -375,7 +376,6 @@ body.light #gear { background: #fff; color: #8a5a14; border-color: #ddd2bb; }
   <div class="brand">
     <img src="logo-emblem.png" alt="ArtVin" onerror="this.style.display='none'" />
     <div class="wordmark"><span class="artvin">ARTVIN</span><span class="cup">Cup</span></div>
-    <div class="memorial">памяти<b>А.&nbsp;Г.&nbsp;Калиша</b></div>
   </div>
   <div class="stream">
     <select id="streamSel" aria-label="Поток"></select>
@@ -419,9 +419,6 @@ body.light #gear { background: #fff; color: #8a5a14; border-color: #ddd2bb; }
   <div class="sched" id="schedBox"></div>
   <div class="row-btns"><button class="small" id="tabCheck">Проверить вкладки</button><span class="hint" id="tabCheckMsg"></span></div>
   <hr>
-  <label>Данные
-    <select id="pSrc"><option value="sheet">Google-таблица</option><option value="demo">Демо</option></select>
-  </label>
   <label>Режим ротации
     <select id="pMode">
       <option value="">Как в таблице</option>
@@ -470,15 +467,16 @@ const STORE = "artvin-display-v2";
 /* ---------- state ---------- */
 const saved = (() => { try { const v = JSON.parse(localStorage.getItem(STORE)) || {}; delete v.places; delete v.rows; return v; } catch (e) { return {}; } })();
 const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, pages: 2, theme: "light", anim: true, sec: 12, hold: 60, sim: true }, saved);
-if (params.get("src")) state.src = params.get("src") === "demo" ? "demo" : "sheet";
-if (params.get("demo")) state.src = "demo";
+// The board always shows the Google Sheet. Demo data only with an explicit ?src=demo in the link
+// (never remembered, so a screen can't get stuck on demo data).
+state.src = params.get("src") === "demo" || params.get("demo") ? "demo" : "sheet";
 if (params.get("stream")) state.stream = params.get("stream");
 if (params.get("rot")) state.mode = { manual: "manual", auto: "auto", time: "time" }[params.get("rot")] || "";
 if (params.get("fs")) state.fs = +params.get("fs") || state.fs;
 if (params.get("sec")) state.sec = +params.get("sec") || state.sec;
 if (params.get("pages")) state.pages = Math.max(1, Math.min(4, +params.get("pages") || 2));
 if (params.get("theme")) state.theme = params.get("theme") === "dark" ? "dark" : "light";
-function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
+function save() { try { const s = Object.assign({}, state); delete s.src; localStorage.setItem(STORE, JSON.stringify(s)); } catch (e) {} }
 
 let settings = [];        // streams from «Настройки»
 let current = null;       // settings row of the shown stream
@@ -690,7 +688,7 @@ function render(advanced) {
   applyTheme();
   fitFont();
   $("demoBadge").hidden = true;
-  $("demoBar").hidden = state.src !== "demo";
+  $("demoBar").hidden = true;   // no demo controls on the board
   document.body.classList.toggle("demo", state.src === "demo");
   $("demoBox").style.display = state.src === "demo" ? "" : "none";
 
@@ -829,7 +827,7 @@ function restartProgress() {
 function showMessage(title, text, offerDemo) {
   $("appTitle").textContent = "";
   $("table").innerHTML = `<div class="empty-msg"><b>${A.esc(title)}</b>${A.esc(text || "")}${
-    offerDemo && state.src !== "demo" ? '<br><br><a href="?src=demo">Открыть демо-данные →</a>' : ""}</div>`;
+    ""}</div>`;
 }
 
 /* ---------- cycling ---------- */
@@ -904,7 +902,6 @@ $("tabCheck").onclick = () => checkTabs(true);
 function syncPanel() {
   renderSchedule();
   if ($("panel").classList.contains("open")) checkTabs(false);
-  $("pSrc").value = state.src;
   $("pMode").value = state.mode;
   $("pFs").value = state.fs;
   $("pPages").value = state.pages;
@@ -958,7 +955,6 @@ document.addEventListener("mousemove", () => {
   document.body.classList.add("pointer"); clearTimeout(pointerT);
   pointerT = setTimeout(() => document.body.classList.remove("pointer"), 3000);
 });
-$("pSrc").onchange = e => setState({ src: e.target.value, stream: "auto" }, true);
 $("pMode").onchange = e => setState({ mode: e.target.value }, true);
 $("pFs").onchange = e => { setState({ fs: Math.max(16, Math.min(120, +e.target.value || 42)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
 $("pPages").onchange = e => { setState({ pages: Math.max(1, Math.min(4, +e.target.value || 2)) }); lastKey = ""; buildSteps(); render(false); syncPanel(); };
