@@ -11,7 +11,7 @@
  * (таблица открыта для просмотра). После неверного кода — пауза 1,5 с, чтобы коды нельзя было подобрать.
  */
 
-var JUDGE_PAGE = "https://miner229.github.io/table-site/demo/judge.html";
+var JUDGE_PAGE = "https://miner229.github.io/table-site/judge.html";
 var SETTINGS_TAB = "Настройки";
 var LOG_TAB = "Журнал";
 var MAX_SCORE = 10;

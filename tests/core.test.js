@@ -1,4 +1,4 @@
-// Unit tests for demo/core.js (parsing, rotation, ranking, streams).
+// Unit tests for core.js (parsing, rotation, ranking, streams).
 // Run: node --test tests/
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -16,7 +16,7 @@ function loadCore() {
   };
   ctx.window = ctx;
   vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "demo", "core.js"), "utf8"), ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "core.js"), "utf8"), ctx);
   return ctx.ArtVin;
 }
 const A = loadCore();
