@@ -17,7 +17,7 @@ const CONFIG = {
   SHEET_ID: "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w",
   SETTINGS_TAB: "Настройки",
   // Apps Script web-app URL (judges write scores through it). Can also come from ?api=... in the judge link.
-  SCRIPT_URL: "",
+  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwL7ixbqxwNu_GhgpZZOYg-OHBM_zkoxX9NmiCix9qus78HiK_0OhWhfgH-CR4WZgnd8A/exec",
 };
 
 const APPARATUS = {
@@ -410,6 +410,8 @@ async function gvizText(tab) {
 async function gvizValues(tab) { return parseCSV(await gvizText(tab)); }
 
 function scriptUrl() {
+  // the deployed script address is built in; ?api=… only matters if it is ever cleared
+  if (CONFIG.SCRIPT_URL) return CONFIG.SCRIPT_URL;
   const p = new URLSearchParams(location.search).get("api");
   if (p) { try { localStorage.setItem("artvin-api", p); } catch (e) {} return p; }
   try { return localStorage.getItem("artvin-api") || CONFIG.SCRIPT_URL; } catch (e) { return CONFIG.SCRIPT_URL; }
