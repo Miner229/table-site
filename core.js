@@ -433,7 +433,7 @@ async function scriptPost(body) {
     body: JSON.stringify(body),
   });
   const j = await res.json();
-  if (!j.ok) { const e = new Error(j.error || "Ошибка сервера"); e.conflict = !!j.conflict; e.current = j.current; throw e; }
+  if (!j.ok) { const e = new Error(j.error || "Ошибка сервера"); e.conflict = !!j.conflict; e.locked = !!j.locked; e.current = j.current; throw e; }
   return j;
 }
 

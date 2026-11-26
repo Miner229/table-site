@@ -96,6 +96,24 @@ function checkAdmin_(code) {
     throw new Error("Неверный код организатора");
   }
 }
+
+/* ---------------- secretary code (the only way to change or delete a score once it is entered) ---------------- */
+function secretaryKey_() {
+  var props = PropertiesService.getScriptProperties();
+  var k = props.getProperty("SECRETARY_KEY");
+  if (!k) {
+    var taken = keys_(), admin = props.getProperty("ADMIN_KEY");
+    do { k = randomKey_(); } while (taken[k] || k === admin);
+    props.setProperty("SECRETARY_KEY", k);
+  }
+  return k;
+}
+function checkSecretary_(code) {
+  if (!normKey_(code) || normKey_(code) !== secretaryKey_()) {
+    Utilities.sleep(1500);
+    throw new Error("Неверный код секретаря");
+  }
+}
 // tab = stream to show and judge; "" = back to the «Начало» schedule
 function setStream_(tab) {
   var sh = sheet_(SETTINGS_TAB);
@@ -147,6 +165,7 @@ function doGet(e) {
       return json_({ ok: true, values: sheet_(p.tab).getDataRange().getDisplayValues() });
     }
     if (p.action === "adminCheck") { checkAdmin_(p.key); return json_({ ok: true }); }
+    if (p.action === "secretaryCheck") { checkSecretary_(p.key); return json_({ ok: true }); }
     if (p.action === "whoami") { var j = judge_(p.key); return json_({ ok: true, gender: j.gender, app: j.app, name: APPS[j.app] }); }
     return json_({ ok: true, service: "ArtVin Cup scores" });
   } catch (err) {
@@ -167,59 +186,82 @@ function doPost(e) {
       safeLog_([new Date(), "Организатор", tab || "по расписанию", "", "Поток для судей и табло", "", tab ? "да" : "расписание"]);
       return json_({ ok: true, tab: tab });
     }
-    if (b.action !== "score") throw new Error("Неизвестное действие");
-    var j = judge_(b.key);                      // apparatus comes ONLY from the key
-    var all = streams_();
-    var st = all[b.tab];
-    if (!st) throw new Error("Поток не найден в «Настройках»");
-    if (st.gender !== j.gender) throw new Error("Этот поток не для вашего снаряда");
-    var chosen = chosenTab_(all);
-    if (chosen && chosen !== b.tab) throw new Error("Сейчас оценки принимаются только в поток «" + chosen + "»");
-
-    // value: "" (удалить) or number 0..MAX_SCORE with up to 3 decimals; 0 = «не выступал»
-    var raw = String(b.value == null ? "" : b.value).trim().replace(",", ".");
-    var value = "";
-    if (raw !== "") {
-      if (!/^\d{1,2}(\.\d{1,3})?$/.test(raw)) throw new Error("Неверный формат оценки");
-      value = Number(raw);
-      if (value < 0 || value > MAX_SCORE) throw new Error("Оценка должна быть от 0 до " + MAX_SCORE);
+    if (b.action === "score") {
+      // Judge: the apparatus comes ONLY from the key. A score can be entered ONCE.
+      var j = judge_(b.key);
+      var all = streams_();
+      var st = all[b.tab];
+      if (!st) throw new Error("Поток не найден в «Настройках»");
+      if (st.gender !== j.gender) throw new Error("Этот поток не для вашего снаряда");
+      var chosen = chosenTab_(all);
+      if (chosen && chosen !== b.tab) throw new Error("Сейчас оценки принимаются только в поток «" + chosen + "»");
+      return json_(writeScore_(lock, b, st.gender, j.app, "judge"));
     }
-
-    lock_(lock);
-    var sh = sheet_(b.tab);
-    var values = sh.getDataRange().getDisplayValues();
-    var hi = headerIndex_(values);
-    var head = values[hi];
-    var nameCol = head.findIndex(function (c) { return /^фио/.test(norm_(c)); });
-    var startCol = head.findIndex(function (c) { return /старт/.test(norm_(c)); });
-    var col = -1;
-    for (var c = 0; c < head.length; c++) {
-      if (c === nameCol || c === startCol) continue;
-      if (appFromText_(head[c], st.gender) === j.app) { col = c; break; }
+    if (b.action === "fix") {
+      // Secretary: corrects or clears any score in any stream, with the secretary code.
+      checkSecretary_(b.secret);
+      var sst = streams_()[b.tab];
+      if (!sst) throw new Error("Поток не найден в «Настройках»");
+      if (ORDER[sst.gender].indexOf(b.app) < 0) throw new Error("Нет такого снаряда в этом потоке");
+      return json_(writeScore_(lock, b, sst.gender, b.app, "secretary"));
     }
-    if (col < 0) throw new Error("В потоке нет колонки «" + APPS[j.app] + "»");
-
-    var row = Number(b.row);
-    if (!(row - 1 > hi && row <= values.length)) throw new Error("Неверная строка");
-    if (norm_(values[row - 1][nameCol]) !== norm_(b.name)) throw new Error("Список изменился — обновите страницу");
-
-    var cell = sh.getRange(row, col + 1);
-    var old = cell.getDisplayValue();
-    // Two devices on the same apparatus: refuse to overwrite a score the judge has not seen.
-    // b.expected = the value the judge's page showed before the change ("" = empty).
-    if (b.expected !== undefined && !sameScore_(old, b.expected)) {
-      return json_({ ok: false, conflict: true, current: old, error: "Оценку уже изменили на другом устройстве: " + (old || "пусто") });
-    }
-    if (sameScore_(old, value === "" ? "" : String(value))) return json_({ ok: true, unchanged: true });
-    if (value === "") cell.clearContent(); else cell.setValue(value);
-    SpreadsheetApp.flush();
-    safeLog_([new Date(), APPS[j.app] + (j.gender === "F" ? " (Ж)" : " (М)"), b.tab, row, b.name, old, value === "" ? "удалено" : value]);
-    return json_({ ok: true });
+    throw new Error("Неизвестное действие");
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err) });
   } finally {
     try { lock.releaseLock(); } catch (x) {}
   }
+}
+
+// One write path for judges and the secretary — same checks, only the overwrite rule differs.
+// b: { tab, row, name, value, expected } · who: "judge" | "secretary"
+function writeScore_(lock, b, gender, app, who) {
+  // value: "" (удалить) or number 0..MAX_SCORE with up to 3 decimals; 0 = «не выступал»
+  var raw = String(b.value == null ? "" : b.value).trim().replace(",", ".");
+  var value = "";
+  if (raw !== "") {
+    if (!/^\d{1,2}(\.\d{1,3})?$/.test(raw)) throw new Error("Неверный формат оценки");
+    value = Number(raw);
+    if (value < 0 || value > MAX_SCORE) throw new Error("Оценка должна быть от 0 до " + MAX_SCORE);
+  }
+  if (who === "judge" && value === "") throw new Error("Удалить оценку может только секретарь");
+
+  lock_(lock);
+  var sh = sheet_(b.tab);
+  var values = sh.getDataRange().getDisplayValues();
+  var hi = headerIndex_(values);
+  var head = values[hi];
+  var nameCol = head.findIndex(function (c) { return /^фио/.test(norm_(c)); });
+  var startCol = head.findIndex(function (c) { return /старт/.test(norm_(c)); });
+  var col = -1;
+  for (var c = 0; c < head.length; c++) {
+    if (c === nameCol || c === startCol) continue;
+    if (appFromText_(head[c], gender) === app) { col = c; break; }
+  }
+  if (col < 0) throw new Error("В потоке нет колонки «" + APPS[app] + "»");
+
+  var row = Number(b.row);
+  if (!(row - 1 > hi && row <= values.length)) throw new Error("Неверная строка");
+  if (norm_(values[row - 1][nameCol]) !== norm_(b.name)) throw new Error("Список изменился — обновите страницу");
+
+  var cell = sh.getRange(row, col + 1);
+  var old = cell.getDisplayValue();
+  // The same value again (e.g. the answer to the first try was lost on a bad network): nothing to do.
+  if (sameScore_(old, value === "" ? "" : String(value))) return { ok: true, unchanged: true };
+  // Judges: once a score is in the cell, only the secretary can change it.
+  if (who === "judge" && old !== "") {
+    return { ok: false, locked: true, current: old, error: "Оценка уже выставлена: " + old + ". Исправить может только секретарь" };
+  }
+  // Refuse to overwrite a value the page has not seen (two devices / secretary and a judge at once).
+  // b.expected = the value the page showed before the change ("" = empty).
+  if (b.expected !== undefined && !sameScore_(old, b.expected)) {
+    return { ok: false, conflict: true, current: old, error: "Оценку уже изменили на другом устройстве: " + (old || "пусто") };
+  }
+  if (value === "") cell.clearContent(); else cell.setValue(value);
+  SpreadsheetApp.flush();
+  var label = APPS[app] + (gender === "F" ? " (Ж)" : " (М)");
+  safeLog_([new Date(), who === "secretary" ? "Секретарь · " + label : label, b.tab, row, b.name, old, value === "" ? "удалено" : value]);
+  return { ok: true };
 }
 
 function sameScore_(a, b) {
@@ -318,6 +360,8 @@ function makeKeys_() {
   PropertiesService.getScriptProperties().setProperty("JUDGE_KEYS", JSON.stringify(k));
   var a; do { a = randomKey_(); } while (k[a]);
   PropertiesService.getScriptProperties().setProperty("ADMIN_KEY", a);
+  var s; do { s = randomKey_(); } while (k[s] || s === a);
+  PropertiesService.getScriptProperties().setProperty("SECRETARY_KEY", s);
   return k;
 }
 function resetKeys() {
@@ -346,6 +390,10 @@ function showJudgeLinks() {
     "<span class='code'>" + fmtKey_(adminKey_()) + "</span><br>Откройте табло один раз по этой ссылке на компьютере у экрана — " +
     "тогда кнопка «Поток» (левый нижний угол, или клавиша P) сможет переключать поток для судей и экранов:" +
     "<input readonly onclick='this.select()' value='" + board + "'></p>" +
+    "<p style='background:#eef6ff;padding:8px 10px;border-radius:6px'><b>Секретарь.</b> Код для исправления оценок: " +
+    "<span class='code'>" + fmtKey_(secretaryKey_()) + "</span><br>Судья ставит оценку только один раз. Исправить или удалить её " +
+    "может только секретарь: страница протокола → «Исправить оценки» → этот код → нажать на оценку." +
+    "<input readonly onclick='this.select()' value='" + JUDGE_PAGE.replace(/judge\.html$/, "secretary.html") + "'></p>" +
     "<p><b>1. Ссылка для всех судей</b> (одна и та же):</p><input readonly onclick='this.select()' value='" + common + "'>" +
     "<p><b>2. Каждому судье — только код его снаряда.</b> Судья открывает ссылку, выбирает снаряд и вводит код " +
     "(или сразу ссылку своего снаряда из последней колонки). Код открывает только свой снаряд.</p><table>" +

@@ -78,6 +78,11 @@ select { flex: 1; min-width: 200px; }
 .g .st:empty { display: none; }
 .g.saved { border-color: rgba(127,211,138,.45); }
 .g.saved input { border-color: rgba(127,211,138,.6); }
+/* a saved score is final for the judge: only the secretary can change it */
+.g.saved input { pointer-events: none; }
+.g.saved button.save, .g.saved button.dns { display: none; }
+.g .lockmsg { display: none; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.g.saved .lockmsg { display: inline; }
 .g .st.ok { color: var(--ok); } .g .st.err { color: var(--err); } .g .st.busy { color: var(--gold-1); }
 .empty { text-align: center; color: var(--muted); padding: 30px 10px; }
 .foot { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: rgba(7,6,5,.94); border-top: 1px solid var(--line);
@@ -177,6 +182,11 @@ async function writeScore(g, value, expected) {
     if (col == null) throw new Error("В таблице нет колонки вашего снаряда");
     if (A.norm(values[g.row - 1][parsed.nameCol]) !== A.norm(g.name)) throw new Error("Строка изменилась — обновите");
     const now = values[g.row - 1][col] || "";
+    if (A.sameScore(now, value)) return;   // same value again: nothing to do
+    if (now !== "") {
+      const e = new Error("Оценка уже выставлена: " + now + ". Исправить может только секретарь");
+      e.locked = true; e.current = now; throw e;
+    }
     if (!A.sameScore(now, expected)) {
       const e = new Error("Оценку уже изменили на другом устройстве: " + (now || "пусто"));
       e.conflict = true; e.current = now; throw e;
@@ -328,7 +338,7 @@ function render() {
       const inp = el.querySelector("input");
       const raw = (g.scores[me.app] || {}).raw || "";
       if (document.activeElement !== inp && !inp.dataset.dirty) inp.value = shown(raw);
-      el.classList.toggle("saved", raw !== "");
+      setSaved(el, raw !== "");
     });
     $("status").outerHTML = statusHtml;
     $("rotline").innerHTML = rotText();
@@ -347,9 +357,10 @@ function rowHtml(g, n) {
     <span class="n">${n}</span>
     <div class="who"><b>${A.esc(g.name)}</b><span>${A.esc([g.year, g.club].filter(Boolean).join(" · "))}</span></div>
     <div class="entry">
-      <input inputmode="decimal" autocomplete="off" enterkeyhint="next" placeholder="9,250" value="${A.esc(shown(raw))}" aria-label="Оценка ${A.esc(g.name)}" />
+      <input inputmode="decimal" autocomplete="off" enterkeyhint="next" placeholder="9,250" value="${A.esc(shown(raw))}" aria-label="Оценка ${A.esc(g.name)}"${raw !== "" ? " readonly" : ""} />
       <button class="save" title="Сохранить">✓</button>
       <button class="dns" title="Не выступал">Н/Я</button>
+      <span class="lockmsg">🔒 исправляет секретарь</span>
     </div>
     <div class="st"></div>
   </div>`;
@@ -375,34 +386,44 @@ async function submit(el, forced) {
   if (v.error) { st.className = "st err"; st.textContent = v.error; inp.focus(); return false; }
   const old = (g.scores[me.app] || {}).raw || "";
   if (old === "" && v.value === "") { st.className = "st"; st.textContent = ""; delete inp.dataset.dirty; return false; }
-  const oldN = A.parseScore(old), newN = A.parseScore(v.value);
-  if (old !== "" && (oldN == null || newN == null || Math.abs(oldN - newN) > 1e-9)) {
-    const msg = v.value === "" ? `Удалить оценку ${shown(old)} у ${g.name}?` : `Изменить оценку ${g.name}: ${shown(old)} → ${shown(v.value)}?`;
-    if (!confirm(msg)) { inp.value = shown(old); delete inp.dataset.dirty; return false; }
-  } else if (old !== "" && v.value !== "" && Math.abs(oldN - newN) < 1e-9) {
-    st.className = "st ok"; st.textContent = "Уже сохранено"; delete inp.dataset.dirty; return true;
+  // A judge enters each score ONCE. Changing or deleting it — only the secretary.
+  if (old !== "") {
+    inp.value = shown(old); delete inp.dataset.dirty; setSaved(el, true);
+    st.className = "st err"; st.textContent = "Оценка уже выставлена. Исправить может только секретарь.";
+    return false;
+  }
+  if (!confirm(`${g.name}: ${shown(v.value)}
+
+Сохранить? Исправить потом сможет только секретарь.`)) {
+    inp.focus(); return false;
   }
   st.className = "st busy"; st.textContent = "Сохраняю…";
   try {
     await writeScore(g, v.value, old);
     setLocal(g, v.value);
     inp.value = shown(v.value); delete inp.dataset.dirty;
-    el.classList.toggle("saved", v.value !== "");
-    st.className = "st ok"; st.textContent = v.value === "" ? "Оценка удалена" : "✓ Сохранено — на табло через несколько секунд";
+    setSaved(el, v.value !== "");
+    st.className = "st ok"; st.textContent = "✓ Сохранено — на табло через несколько секунд";
     setTimeout(() => { if (st.classList.contains("ok")) st.textContent = ""; }, 4000);
     info = A.currentRotation(stream, current, null);
     render();
     return true;
   } catch (e) {
-    if (e.conflict) {
-      // someone else saved first: show their value, the judge decides again
+    if (e.conflict || e.locked) {
+      // a score is already there (another device of this apparatus): show it, locked
       setLocal(g, e.current || "");
       inp.value = shown(e.current || ""); delete inp.dataset.dirty;
-      el.classList.toggle("saved", !!e.current);
+      setSaved(el, !!e.current);
     }
     st.className = "st err"; st.textContent = "Не сохранено: " + e.message;
     return false;
   }
+}
+// a row with a score is locked for the judge (input read-only, buttons hidden)
+function setSaved(el, saved) {
+  el.classList.toggle("saved", saved);
+  const inp = el.querySelector("input");
+  if (inp) inp.readOnly = saved;
 }
 // keep both the row we edited and the latest loaded copy of the stream in sync
 function setLocal(g, raw) {

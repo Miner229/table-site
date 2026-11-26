@@ -61,9 +61,11 @@ function setup() {
   const keys = ctx.makeKeys_();
   const key = {}; Object.keys(keys).forEach(k => { key[keys[k]] = k; });
   const post = b => ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ action: "score" }, b)) } });
+  // secretary correction: { tab, row, name, app, value, expected } with the secretary code
+  const fix = (b, secret) => JSON.parse(JSON.stringify(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ action: "fix", secret: secret === undefined ? ctx.secretaryKey_() : secret }, b)) } })));
   const get = p => JSON.parse(JSON.stringify(ctx.doGet({ parameter: p })));
   const resetCalls = () => { calls.read = {}; calls.cell = calls.write = calls.append = calls.flush = 0; };
-  return { ctx, tabs, key, keys, post, get, log, knobs, calls, resetCalls, lock: () => ({ lockDepth, maxLockDepth }), slept: () => slept };
+  return { ctx, tabs, key, keys, post, fix, get, log, knobs, calls, resetCalls, lock: () => ({ lockDepth, maxLockDepth }), slept: () => slept };
 }
 const IVANOV = { tab: "Пятница 1", row: 3, name: "Иванов Иван" };
 
@@ -72,9 +74,9 @@ test("a judge writes only the column of the apparatus in their link", () => {
   assert.equal(post({ ...IVANOV, key: key["M:rings"], value: "9.45", expected: "" }).ok, true);
   assert.equal(tabs["Пятница 1"][2][7], "9.45");                       // Кольца
   // a forged "app" field is ignored: still rings
-  post({ ...IVANOV, key: key["M:rings"], app: "floor", value: "8", expected: "9.45" });
-  assert.equal(tabs["Пятница 1"][2][5], "");                            // Вольные untouched
-  assert.equal(tabs["Пятница 1"][2][7], "8");
+  post({ tab: "Пятница 1", row: 4, name: "Петров Пётр", key: key["M:rings"], app: "floor", value: "8", expected: "" });
+  assert.equal(tabs["Пятница 1"][3][5], "");                            // Вольные untouched
+  assert.equal(tabs["Пятница 1"][3][7], "8");
 });
 
 test("wrong key, wrong gender, header row, renamed row and scores over 10 are rejected", () => {
@@ -95,17 +97,17 @@ test("girls' bars judge writes the girls' «Брусья» column", () => {
   assert.equal(tabs["Воскресенье 1"][1][6], "9.2");
 });
 
-test("two devices on one apparatus: a stale page cannot overwrite a score it has not seen", () => {
+test("two devices on one apparatus: the first score stays; the second device can't overwrite it, even knowingly", () => {
   const { tabs, key, post } = setup();
   assert.equal(post({ ...IVANOV, key: key["M:vault"], value: "9.1", expected: "" }).ok, true);   // device A
   const b = post({ ...IVANOV, key: key["M:vault"], value: "9.6", expected: "" });                // device B, stale
   assert.equal(b.ok, false);
-  assert.equal(b.conflict, true);
+  assert.equal(b.locked, true);
   assert.equal(b.current, "9.1");
+  assert.match(b.error, /Исправить может только секретарь/);
+  // B has seen 9.1 and tries again on purpose: still refused — only the secretary can change it
+  assert.equal(post({ ...IVANOV, key: key["M:vault"], value: "9.6", expected: "9,100" }).locked, true);
   assert.equal(tabs["Пятница 1"][2][8], "9.1");
-  // after seeing 9.1, B may correct it deliberately
-  assert.equal(post({ ...IVANOV, key: key["M:vault"], value: "9.6", expected: "9,100" }).ok, true);
-  assert.equal(tabs["Пятница 1"][2][8], "9.6");
 });
 
 test("different judges on different apparatus / gymnasts never interfere; every write is locked and logged", () => {
@@ -128,13 +130,16 @@ test("same apparatus judge across streams: scores land in the right stream", () 
   assert.equal(tabs["Пятница 1"][2][7], "", "same name in another stream untouched");
 });
 
-test("clearing a score and re-sending the same value", () => {
+test("judge: re-sending the same value is harmless (lost answer on bad Wi-Fi); clearing is refused", () => {
   const { tabs, key, post, log } = setup();
   post({ ...IVANOV, key: key["M:hbar"], value: "9", expected: "" });
-  assert.equal(post({ ...IVANOV, key: key["M:hbar"], value: "9.000", expected: "9" }).unchanged, true);
-  assert.equal(post({ ...IVANOV, key: key["M:hbar"], value: "", expected: "9" }).ok, true);
-  assert.equal(tabs["Пятница 1"][2][10], "");
-  assert.equal(log.length, 2, "unchanged re-send is not logged");
+  // the page never got the answer and sends again with expected "" — not a lock error, just «unchanged»
+  assert.equal(post({ ...IVANOV, key: key["M:hbar"], value: "9.000", expected: "" }).unchanged, true);
+  const del = post({ ...IVANOV, key: key["M:hbar"], value: "", expected: "9" });
+  assert.equal(del.ok, false);
+  assert.match(del.error, /Удалить оценку может только секретарь/);
+  assert.equal(tabs["Пятница 1"][2][10], "9");
+  assert.equal(log.length, 1, "only the first write is logged");
 });
 
 test("read API: settings, stream tabs, whoami", () => {
@@ -255,24 +260,81 @@ test("new codes also renew the organiser code", () => {
 
 /* ================= CRUD of every operation, failures, and cost (Sheets calls) ================= */
 
-test("score CRUD: create → read → update → delete, each step logged with old → new value", () => {
-  const { tabs, key, post, get, log } = setup();
+test("score CRUD: judge creates once → read → secretary updates → secretary deletes → judge can score again", () => {
+  const { tabs, key, post, fix, get, log } = setup();
   const k = key["M:rings"], col = 7;
   const cell = () => tabs["Пятница 1"][2][col];
   const readBack = () => get({ action: "state", tab: "Пятница 1" }).values[2][col];
+  const F = { ...IVANOV, app: "rings" };
 
-  assert.equal(post({ ...IVANOV, key: k, value: "9.25", expected: "" }).ok, true);          // C
+  assert.equal(post({ ...IVANOV, key: k, value: "9.25", expected: "" }).ok, true);          // C (judge)
   assert.equal(cell(), "9.25");
   assert.equal(readBack(), "9.25");                                                         // R
-  assert.equal(post({ ...IVANOV, key: k, value: "9,4", expected: "9.25" }).ok, true);       // U (comma accepted)
+  assert.equal(post({ ...IVANOV, key: k, value: "9.4", expected: "9.25" }).locked, true);   // judge U: refused
+  assert.equal(fix({ ...F, value: "9,4", expected: "9.25" }).ok, true);                     // U (secretary, comma ok)
   assert.equal(cell(), "9.4");
-  assert.equal(post({ ...IVANOV, key: k, value: "", expected: "9.4" }).ok, true);           // D
+  assert.equal(fix({ ...F, value: "", expected: "9.4" }).ok, true);                         // D (secretary)
   assert.equal(cell(), "");
   assert.equal(readBack(), "");
-  assert.deepEqual(log.map(r => [r[5], r[6]]), [["", 9.25], ["9.25", 9.4], ["9.4", "удалено"]]);
-  // deleting an empty cell again: nothing to do, nothing logged
-  assert.equal(post({ ...IVANOV, key: k, value: "", expected: "" }).unchanged, true);
-  assert.equal(log.length, 3);
+  assert.equal(post({ ...IVANOV, key: k, value: "9.3", expected: "" }).ok, true, "after a delete the judge can enter it again");
+  assert.deepEqual(log.map(r => [r[1], r[5], r[6]]), [
+    ["Кольца (М)", "", 9.25], ["Секретарь · Кольца (М)", "9.25", 9.4], ["Секретарь · Кольца (М)", "9.4", "удалено"], ["Кольца (М)", "", 9.3]]);
+  // deleting an empty cell: nothing to do, nothing logged
+  assert.equal(fix({ ...F, value: "", expected: "9.3" }).ok, true);
+  assert.equal(fix({ ...F, value: "", expected: "" }).unchanged, true);
+  assert.equal(log.length, 5);
+});
+
+test("secretary: wrong or missing code refused and slowed down; judge and organiser codes don't work", () => {
+  const { tabs, key, post, fix, ctx, slept, log } = setup();
+  post({ ...IVANOV, key: key["M:floor"], value: "9", expected: "" });
+  const F = { ...IVANOV, app: "floor", value: "5", expected: "9" };
+  const before = slept();
+  for (const code of ["", "12345678", key["M:floor"], ctx.adminKey_()]) {
+    const r = fix(F, code);
+    assert.equal(r.ok, false, `code «${code}»`);
+    assert.match(r.error, /Неверный код секретаря/);
+  }
+  assert.ok(slept() - before >= 4 * 1000, "every wrong code waits");
+  assert.equal(tabs["Пятница 1"][2][5], "9");
+  assert.equal(log.length, 1);
+  assert.equal(ctx.doGet({ parameter: { action: "secretaryCheck", key: ctx.secretaryKey_() } }).ok, true);
+  const spaced = ctx.secretaryKey_().slice(0, 4) + " " + ctx.secretaryKey_().slice(4);
+  assert.equal(fix(F, spaced).ok, true, "code may be typed with a space");
+});
+
+test("secretary: same checks as judges — format, range, row, name, apparatus of the stream, stale value", () => {
+  const { tabs, fix, post, key } = setup();
+  const F = { ...IVANOV, app: "floor" };
+  assert.match(fix({ ...F, value: "11" }).error, /от 0 до 10/);
+  assert.match(fix({ ...F, value: "abc" }).error, /формат/);
+  assert.match(fix({ ...F, row: 1, name: "ФИО", value: "9" }).error, /Неверная строка/);
+  assert.match(fix({ ...F, name: "Кто-то Другой", value: "9" }).error, /Список изменился/);
+  assert.match(fix({ ...F, app: "beam", value: "9" }).error, /Нет такого снаряда/, "girls' apparatus in a boys' stream");
+  assert.match(fix({ ...F, tab: "Журнал", value: "9" }).error, /Поток не найден/);
+  post({ ...IVANOV, key: key["M:floor"], value: "8", expected: "" });
+  const stale = fix({ ...F, value: "9", expected: "" });                  // secretary's page still showed empty
+  assert.equal(stale.conflict, true);
+  assert.equal(stale.current, "8");
+  assert.equal(tabs["Пятница 1"][2][5], "8");
+});
+
+test("secretary can correct any stream, also one that is not «на экране» now", () => {
+  const { tabs, fix, ctx } = setup();
+  const admin = ctx.adminKey_();
+  ctx.doPost({ postData: { contents: JSON.stringify({ action: "setStream", admin, tab: "Пятница 2" }) } });
+  assert.equal(fix({ tab: "Воскресенье 1", row: 2, name: "Петрова Анна", app: "beam", value: "8.8", expected: "" }).ok, true);
+  assert.equal(tabs["Воскресенье 1"][1][7], "8.8");
+});
+
+test("new codes also renew the secretary code, and it never equals another code", () => {
+  const { ctx } = setup();
+  const s = ctx.secretaryKey_();
+  const keys = ctx.makeKeys_();
+  const s2 = ctx.secretaryKey_();
+  assert.notEqual(s2, s);
+  assert.match(s2, /^[1-9]\d{7}$/);
+  assert.ok(!keys[s2] && s2 !== ctx.adminKey_());
 });
 
 test("score «0» = did not compete is stored as 0, not as empty", () => {
