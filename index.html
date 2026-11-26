@@ -84,6 +84,13 @@ header {
 }
 .stream select option { background: #15120e; color: #fff; font-size: 18px; }
 .rot { margin-top: 6px; font-size: 17px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--gold-2); }
+/* Public board (the link for parents): broadcast only. Nothing here changes anything for others;
+   the stream follows the schedule and is shown as plain text. Settings exist only on the hall
+   screen link (?screen=1, from the secretary page). */
+#streamTitle { display: none; font: 800 30px/1.1 "Montserrat", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #fff; }
+body.public #streamTitle { display: block; }
+body.public #streamSel, body.public #gear, body.public #panel, body.public .demo-bar { display: none !important; }
+body.light #streamTitle { color: #111; }
 .rot .pending { color: var(--muted); letter-spacing: .06em; text-transform: none; margin-left: 10px; }
 
 /* ---------- apparatus strip ---------- */
@@ -211,36 +218,6 @@ nav.apps button.done .cnt::after { content: "✓"; margin-left: .15em; }
 .empty-msg { margin: auto; text-align: center; color: var(--muted); font-size: 26px; font-weight: 600; letter-spacing: .06em; }
 .empty-msg b { display: block; color: var(--gold-2); font-size: 34px; margin-bottom: 10px; }
 
-/* ---------- organiser: stream for judges (hidden but always reachable) ---------- */
-#streamBtn {
-  position: fixed; left: 12px; bottom: 10px; z-index: 20;
-  font: 700 12px "Montserrat", sans-serif; letter-spacing: .14em; text-transform: uppercase;
-  padding: 6px 10px; border-radius: 8px; cursor: pointer;
-  background: transparent; color: var(--muted); border: 1px solid rgba(157,148,131,.35);
-  opacity: .28; transition: opacity .3s;
-}
-#streamBtn:hover, #streamBtn:focus, body.pointer #streamBtn { opacity: 1; }
-#ctl { position: fixed; inset: 0; z-index: 40; display: none; place-items: center; background: rgba(0,0,0,.45); }
-#ctl.open { display: grid; }
-#ctl .card {
-  width: min(460px, calc(100% - 24px)); max-height: calc(100% - 40px); overflow: auto;
-  background: #fff; color: #111; border-radius: 18px; padding: 20px 20px 16px; box-shadow: 0 30px 80px rgba(0,0,0,.4);
-  font: 500 15px "Montserrat", sans-serif;
-}
-#ctl h3 { margin: 0 0 4px; font-size: 20px; }
-#ctl p { margin: 0 0 14px; color: #666; font-size: 13.5px; line-height: 1.45; }
-#ctl input { width: 100%; font: 800 26px "Montserrat", sans-serif; letter-spacing: .16em; text-align: center; padding: 10px; border-radius: 12px; border: 1px solid #d9cfbb; }
-#ctl button { font: 700 15px "Montserrat", sans-serif; border-radius: 12px; padding: 12px 14px; cursor: pointer; border: 1px solid #e3d9c4; background: #f7f4ee; color: #111; }
-#ctl .go { width: 100%; margin-top: 10px; background: var(--gold-grad); border-color: transparent; color: #1a1205; }
-#ctl .list { display: grid; gap: 8px; }
-#ctl .list button { text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-#ctl .list button.on { background: var(--gold-grad); border-color: transparent; color: #1a1205; }
-#ctl .list button small { color: #8a5a14; font-weight: 600; font-size: 12px; white-space: nowrap; }
-#ctl .list button.on small { color: #1a1205; }
-#ctl .row2 { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
-#ctl .row2 button { background: none; border: 0; color: #777; padding: 6px 0; font-size: 13px; text-decoration: underline; }
-#ctl .msg { min-height: 1.3em; margin-top: 10px; font-size: 14px; color: #8a5a14; }
-#ctl .msg.err { color: #c0392b; }
 
 /* ---------- settings panel ---------- */
 #gear {
@@ -313,6 +290,7 @@ body.pointer #gear, #gear:focus { opacity: 1; }
   .memorial { font-size: 9.5px; letter-spacing: .14em; margin-left: auto; padding-left: 10px; }
   .stream { text-align: left; }
   .stream select { font-size: 19px; text-align: left; text-align-last: left; width: 100%; }
+  #streamTitle { font-size: 19px; }
   .rot { font-size: 12px; margin-top: 4px; }
   nav.apps { position: sticky; top: 0; z-index: 5; padding: 10px 14px; overflow-x: auto; scrollbar-width: none; background: rgba(7,6,5,.92); backdrop-filter: blur(6px); }
   nav.apps::-webkit-scrollbar { display: none; }
@@ -408,6 +386,7 @@ body.light #gear { background: #fff; color: #8a5a14; border-color: #ddd2bb; }
   </div>
   <div class="stream">
     <select id="streamSel" aria-label="Поток"></select>
+    <div id="streamTitle"></div>
     <div class="rot" id="rotInfo"></div>
   </div>
 </header>
@@ -439,8 +418,6 @@ body.light #gear { background: #fff; color: #8a5a14; border-color: #ddd2bb; }
   <button id="dReset">Сброс</button>
 </div>
 <div class="demo-msg" id="demoMsg"></div>
-<button id="streamBtn" title="Поток для судей (P)">Поток</button>
-<div id="ctl" role="dialog" aria-label="Поток для судей"><div class="card" id="ctlCard"></div></div>
 <button id="gear" title="Настройки (S)">⚙</button>
 <aside id="panel">
   <h3>Настройки экрана</h3>
@@ -501,6 +478,10 @@ const state = Object.assign({ src: "sheet", stream: "auto", mode: "", fs: 42, pa
 // The board always shows the Google Sheet. Demo data only with an explicit ?src=demo in the link
 // (never remembered, so a screen can't get stuck on demo data).
 state.src = params.get("src") === "demo" || params.get("demo") ? "demo" : "sheet";
+// Hall screen (and demo) = settings available. Everyone else (parents) = broadcast only.
+const SCREEN = params.get("screen") === "1" || state.src === "demo";
+if (!SCREEN) { state.stream = "auto"; state.mode = ""; }
+document.body.classList.toggle("public", !SCREEN);
 if (params.get("stream")) state.stream = params.get("stream");
 if (params.get("rot")) state.mode = { manual: "manual", auto: "auto", time: "time" }[params.get("rot")] || "";
 if (params.get("fs")) state.fs = +params.get("fs") || state.fs;
@@ -626,7 +607,7 @@ function fillStreamSelect() {
   const sig = settings.map(s => s.tab + s.title + s.active).join("|") + "|" + (active && active.tab);
   if (sel.dataset.sig !== sig) {
     sel.dataset.sig = sig;
-    sel.innerHTML = `<option value="auto">● ${A.esc(active ? active.title : "Текущий поток")}</option>` +
+    sel.innerHTML = `<option value="auto">● Авто — сейчас: ${A.esc(active ? active.title : "по расписанию")}</option>` +
       settings.map(s => `<option value="${A.esc(s.tab)}">${A.esc(s.title)}</option>`).join("");
   }
   sel.value = state.stream;
@@ -730,6 +711,7 @@ function render(advanced) {
   $("demoBox").style.display = state.src === "demo" ? "" : "none";
 
   // header
+  $("streamTitle").textContent = current.title;
   const pend = pending[current.tab];
   if (pick && pick.status === "upcoming") $("rotInfo").textContent = A.startsLabel(current, Date.now());
   else $("rotInfo").innerHTML = (rotInfo.finished && !pend
@@ -959,7 +941,7 @@ function syncPanel() {
     : "Меняется в Google-таблице: вкладка «Настройки», колонка «Ротация».";
   const base = location.origin + location.pathname;
   const tvParams = new URLSearchParams();
-  if (state.src === "demo") tvParams.set("src", "demo");
+  if (state.src === "demo") tvParams.set("src", "demo"); else tvParams.set("screen", "1");
   if (state.stream !== "auto") tvParams.set("stream", state.stream);
   if (state.mode) tvParams.set("rot", state.mode);
   if (state.fs !== 42) tvParams.set("fs", state.fs);
@@ -981,104 +963,11 @@ function setState(patch, reload) {
   if (reload) { lastKey = ""; refresh().then(syncPanel); startRefresh(); }
   else { if (stream) { computeRotation(); buildSteps(); render(false); } }
 }
-$("gear").onclick = () => { $("panel").classList.toggle("open"); syncPanel(); };
+$("gear").onclick = () => { if (SCREEN) { $("panel").classList.toggle("open"); syncPanel(); } };
 
-/* ---------- organiser: which stream the judges score (and every screen shows) ----------
-   Protected by the organiser code (menu «Коды судей» in the Google Sheet). The choice is written
-   to «На экране» in «Настройки», so the board, parents, judges and the secretary all switch,
-   and the server accepts scores only for that stream. */
-const ADMIN_STORE = () => (state.src === "demo" ? "artvin-admin-demo" : "artvin-admin");
-const DEMO_ADMIN = "99990000";
-let adminCode = "";
-try { adminCode = localStorage.getItem(ADMIN_STORE()) || ""; } catch (e) {}
-const normCode = c => String(c || "").replace(/[\s-]/g, "");
-async function adminCheck(code) {
-  if (state.src === "demo") { if (normCode(code) !== DEMO_ADMIN) throw new Error("Неверный код организатора"); return; }
-  if (!A.scriptUrl()) throw new Error("Табло не знает адрес скрипта: откройте его один раз по ссылке организатора из меню «Коды судей»");
-  await A.scriptGet({ action: "adminCheck", key: code });
-}
-async function adminSetStream(tab) {
-  if (state.src === "demo") {
-    const d = A.demoInit();
-    const head = d.settings[0].map(A.norm);
-    const tc = head.findIndex(c => /лист/.test(c)), ac = head.findIndex(c => /экран/.test(c));
-    d.settings.slice(1).forEach(r => { r[ac] = tab && r[tc] === tab ? "да" : ""; });
-    A.demoSave(d);
-    return;
-  }
-  await A.scriptPost({ action: "setStream", admin: adminCode, tab });
-}
-function ctlMsg(t, err) { const m = $("ctlMsg"); if (m) { m.textContent = t || ""; m.className = "msg" + (err ? " err" : ""); } }
-function openCtl() {
-  $("ctl").classList.add("open");
-  if (!adminCode) return showCtlCode();
-  showCtlList();
-}
-function closeCtl() { $("ctl").classList.remove("open"); }
-function showCtlCode(msg) {
-  $("ctlCard").innerHTML = `<form id="ctlForm">
-      <h3>Поток для судей</h3>
-      <p>Введите код организатора (меню «ArtVin Cup → Коды судей» в Google-таблице).${
-        state.src === "demo" ? " Демо-код: <b>9999 0000</b>." : ""}</p>
-      <input id="ctlCode" inputmode="numeric" autocomplete="off" placeholder="0000 0000" maxlength="11" />
-      <button class="go" id="ctlGo">Войти</button>
-      <div class="msg${msg ? " err" : ""}" id="ctlMsg">${A.esc(msg || "")}</div>
-      <div class="row2"><span></span><button type="button" id="ctlClose">Закрыть</button></div>
-    </form>`;
-  $("ctlCode").focus();
-  $("ctlClose").onclick = closeCtl;
-  $("ctlForm").onsubmit = async e => {
-    e.preventDefault();
-    const c = $("ctlCode").value.trim();
-    if (normCode(c).length !== 8) { ctlMsg("Код — 8 цифр", true); return; }
-    $("ctlGo").disabled = true; ctlMsg("Проверяю…");
-    try {
-      await adminCheck(c);
-      adminCode = normCode(c);
-      try { localStorage.setItem(ADMIN_STORE(), adminCode); } catch (x) {}
-      showCtlList();
-    } catch (err) { $("ctlGo").disabled = false; ctlMsg(err.message, true); }
-  };
-}
-function showCtlList(msg, err) {
-  const chosen = settings.find(s => s.active);
-  const label = s => s.gender === "F" ? "девочки" : "мальчики";
-  $("ctlCard").innerHTML = `
-    <h3>Поток для судей</h3>
-    <p>Судьи ставят оценки только в выбранный поток; табло, родители и секретарь показывают его же.</p>
-    <div class="list">
-      ${settings.map(s => `<button type="button" data-tab="${A.esc(s.tab)}" class="${chosen && chosen.tab === s.tab ? "on" : ""}">
-          <span>${A.esc(s.title)}</span><small>${chosen && chosen.tab === s.tab ? "✓ сейчас · " : ""}${label(s)}</small></button>`).join("")}
-      <button type="button" data-tab="" class="${chosen ? "" : "on"}"><span>По расписанию «Начало»</span><small>${chosen ? "" : "✓ сейчас"}</small></button>
-    </div>
-    <div class="msg${err ? " err" : ""}" id="ctlMsg">${A.esc(msg || "")}</div>
-    <div class="row2"><button type="button" id="ctlOut">Забыть код на этом устройстве</button><button type="button" id="ctlClose">Закрыть</button></div>`;
-  $("ctlClose").onclick = closeCtl;
-  $("ctlOut").onclick = () => { adminCode = ""; try { localStorage.removeItem(ADMIN_STORE()); } catch (x) {} showCtlCode(); };
-  $("ctlCard").querySelectorAll(".list button").forEach(b => (b.onclick = async () => {
-    const tab = b.dataset.tab;
-    const title = tab ? settings.find(s => s.tab === tab).title : "расписание «Начало»";
-    ctlMsg("Переключаю…");
-    $("ctlCard").querySelectorAll(".list button").forEach(x => (x.disabled = true));
-    try {
-      await adminSetStream(tab);
-      if (state.stream !== "auto") setState({ stream: "auto" });   // this screen follows the choice too
-      pinnedApp = null; stepIdx = 0;
-      await refresh();
-      showCtlList(tab ? `Готово: судьи и экраны — «${title}». У судей поток сменится в течение ~10 с.` : "Готово: снова по расписанию «Начало».");
-    } catch (e2) {
-      if (/код организатора/.test(e2.message)) { adminCode = ""; try { localStorage.removeItem(ADMIN_STORE()); } catch (x) {} return showCtlCode(e2.message); }
-      showCtlList("Не получилось: " + e2.message, true);
-    }
-  }));
-}
-$("streamBtn").onclick = openCtl;
-$("ctl").onclick = e => { if (e.target.id === "ctl") closeCtl(); };
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-  if (e.key === "s" || e.key === "S" || e.key === "ы" || e.key === "Ы") { $("panel").classList.toggle("open"); syncPanel(); }
-  if (e.key === "p" || e.key === "P" || e.key === "з" || e.key === "З") { $("ctl").classList.contains("open") ? closeCtl() : openCtl(); }
-  if (e.key === "Escape") closeCtl();
+  if (SCREEN && (e.key === "s" || e.key === "S" || e.key === "ы" || e.key === "Ы")) { $("panel").classList.toggle("open"); syncPanel(); }
   if (e.key === "ArrowRight" && steps.length) { stepIdx = (stepIdx + 1) % steps.length; render(true); startCycle(); }
   if (e.key === "ArrowLeft" && steps.length) { stepIdx = (stepIdx - 1 + steps.length) % steps.length; render(true); startCycle(); }
 });

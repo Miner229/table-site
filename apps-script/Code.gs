@@ -452,17 +452,16 @@ function showJudgeLinks() {
   var k = keys_();
   if (!Object.keys(k).length || !/^\d{8}$/.test(Object.keys(k)[0])) k = makeKeys_();
   var common = JUDGE_PAGE + "?api=" + encodeURIComponent(api);
-  var board = JUDGE_PAGE.replace(/judge\.html$/, "") + "?api=" + encodeURIComponent(api);
   var rows = Object.keys(k).map(function (key) {
     var p = k[key].split(":");
     return { g: p[0], app: p[1], key: key };
   }).sort(function (a, b) { return a.g === b.g ? ORDER[a.g].indexOf(a.app) - ORDER[b.g].indexOf(b.app) : (a.g === "M" ? -1 : 1); });
   var html = "<style>body{font-family:Arial;font-size:13px}td{padding:6px 8px;border-bottom:1px solid #eee}" +
     ".code{font:bold 18px monospace;letter-spacing:2px}input{width:100%;font-size:11px}</style>" +
-    "<p style='background:#fff8e6;padding:8px 10px;border-radius:6px'><b>Организатор.</b> Код для кнопки «Поток» на табло: " +
-    "<span class='code'>" + fmtKey_(adminKey_()) + "</span><br>Откройте табло один раз по этой ссылке на компьютере у экрана — " +
-    "тогда кнопка «Поток» (левый нижний угол, или клавиша P) сможет переключать поток для судей и экранов:" +
-    "<input readonly onclick='this.select()' value='" + board + "'></p>" +
+    "<p style='background:#fff8e6;padding:8px 10px;border-radius:6px'><b>Организатор.</b> Код для переключения потока: " +
+    "<span class='code'>" + fmtKey_(adminKey_()) + "</span><br>Страница секретаря → «Поток для всех» → этот код. " +
+    "Экран в зале открывайте по этой ссылке (с настройками); родителям — ссылку без «?screen=1»:" +
+    "<input readonly onclick='this.select()' value='" + JUDGE_PAGE.replace(/judge\.html$/, "") + "?screen=1'></p>" +
     "<p style='background:#eef6ff;padding:8px 10px;border-radius:6px'><b>Секретарь.</b> Код для исправления оценок: " +
     "<span class='code'>" + fmtKey_(secretaryKey_()) + "</span><br>Судья ставит оценку только один раз. Исправить или удалить её " +
     "может только секретарь: страница протокола → «Исправить оценки» → этот код → нажать на оценку." +
