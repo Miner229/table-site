@@ -30,10 +30,13 @@ function setup() {
   const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
   const sheet = name => ({
     getDataRange: () => ({ getDisplayValues: () => { bump(calls.read, name); return tabs[name].map(r => r.map(String)); } }),
-    getRange: (r, c) => ({
+    getRange: (r, c, nr = 1, nc = 1) => ({
       getDisplayValue: () => { calls.cell++; return tabs[name][r - 1][c - 1] ?? ""; },
       setValue: v => { calls.write++; while (tabs[name].length < r) tabs[name].push([]); tabs[name][r - 1][c - 1] = String(v); },
-      clearContent: () => { calls.write++; tabs[name][r - 1][c - 1] = ""; },
+      clearContent: () => {
+        calls.write++;
+        for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) if (tabs[name][r - 1 + i]) tabs[name][r - 1 + i][c - 1 + j] = "";
+      },
     }),
     appendRow: row => { if (knobs.logFails) throw new Error("Журнал защищён"); calls.append++; log.push(row); tabs[name].push(row.map(String)); },
     getLastColumn: () => Math.max(0, ...tabs[name].map(r => { let n = r.length; while (n && r[n - 1] === "") n--; return n; })),
@@ -48,7 +51,8 @@ function setup() {
     LockService: { getScriptLock: () => {
       let held = false;
       return {
-        tryLock: () => { if (knobs.lockBusy) return false; held = true; lockDepth++; maxLockDepth = Math.max(maxLockDepth, lockDepth); return true; },
+        // like Apps Script: re-entrant within one execution
+        tryLock: () => { if (held) return true; if (knobs.lockBusy) return false; held = true; lockDepth++; maxLockDepth = Math.max(maxLockDepth, lockDepth); return true; },
         releaseLock: () => { if (held) { held = false; lockDepth = Math.max(0, lockDepth - 1); } },
       };
     } },
@@ -472,4 +476,102 @@ test("scale: a 500-gymnast stream costs the same number of Sheets calls and stay
   const msPerWrite = Number(process.hrtime.bigint() - t) / 1e6 / 50;
   assert.equal(calls.read["Пятница 1"], 50, "one read of the stream per write, whatever its size");
   assert.ok(msPerWrite < 20, `script-side work per write: ${msPerWrite.toFixed(2)} ms`);
+});
+
+/* ================= test scores are cleared once, when a stream starts ================= */
+// Aktobe time (UTC+5) → ms
+const AQT = (d, h, m) => Date.UTC(2026, 10, d, h - 5, m);
+function withSchedule() {
+  const s = setup();
+  s.tabs["Настройки"] = [["Поток", "Лист", "Пол", "Ротация", "Режим", "Время ротаций", "На экране", "Начало"],
+    ["Пт 1", "Пятница 1", "М", "1", "авто", "", "", "27.11.2026 8:00"],
+    ["Пт 2", "Пятница 2", "М", "1", "авто", "", "", "27.11.2026 12:15"],
+    ["Вс 1", "Воскресенье 1", "Ж", "1", "ручной", "", "", ""]];
+  s.at = ms => { s.ctx.now_ = () => ms; };
+  // test scores typed in advance into both Friday streams (+ «Сумма» kept as is)
+  s.at(AQT(26, 21, 0));
+  s.post({ ...IVANOV, key: s.key["M:floor"], value: "3", expected: "" });
+  s.post({ tab: "Пятница 1", row: 4, name: "Петров Пётр", key: s.key["M:hbar"], value: "10", expected: "" });
+  s.post({ tab: "Пятница 2", row: 2, name: "Иванов Иван", key: s.key["M:rings"], value: "7", expected: "" });
+  s.tabs["Пятница 1"][2][11] = "=SUM(F3:K3)";
+  return s;
+}
+const scoresOf = (tabs, tab) => tabs[tab].slice(1).map(r => r.slice(5, 11).join("|"));
+
+test("start clear: nothing is cleared before «Начало» (Aktobe time)", () => {
+  const s = withSchedule();
+  s.at(AQT(27, 7, 59));
+  s.get({ action: "state", tab: "Пятница 1" });
+  assert.equal(s.tabs["Пятница 1"][2][5], "3");
+  assert.equal(s.tabs["Пятница 1"][3][10], "10");
+});
+
+test("start clear: first request after «Начало» clears that stream's scores once — names, Сумма and other streams untouched", () => {
+  const s = withSchedule();
+  const names = s.tabs["Пятница 1"].map(r => r.slice(0, 5).join("|"));
+  s.at(AQT(27, 8, 0) + 2000);
+  const st = s.get({ action: "state", tab: "Пятница 1" });
+  assert.ok(scoresOf(s.tabs, "Пятница 1").every(x => x === "|||||"), "all score cells empty");
+  assert.equal(st.values[2][5], "", "the judge's very first read already shows the cleared stream");
+  assert.deepEqual(s.tabs["Пятница 1"].map(r => r.slice(0, 5).join("|")), names);
+  assert.equal(s.tabs["Пятница 1"][2][11], "=SUM(F3:K3)", "«Сумма» formula kept");
+  assert.equal(s.tabs["Пятница 2"][1][7], "7", "a stream that has not started keeps its scores");
+  assert.ok(s.log.some(r => r[1] === "Старт потока" && r[2] === "Пятница 1" && r[5] === "2 шт."));
+  // real scores after the start are never cleared again
+  assert.equal(s.post({ ...IVANOV, key: s.key["M:floor"], value: "9.1", expected: "" }).ok, true);
+  s.at(AQT(27, 8, 30));
+  s.get({ action: "state", tab: "Пятница 1" });
+  assert.equal(s.tabs["Пятница 1"][2][5], "9.1");
+});
+
+test("start clear: a judge's first real score right after «Начало» clears the tests first, then is saved (not «locked»)", () => {
+  const s = withSchedule();
+  s.at(AQT(27, 8, 3));
+  const r = s.post({ ...IVANOV, key: s.key["M:floor"], value: "9.4", expected: "" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(s.tabs["Пятница 1"][2][5], "9.4");
+  assert.equal(s.tabs["Пятница 1"][3][10], "", "the other test score is gone");
+});
+
+test("start clear: never later than 45 min after «Начало» — then it only marks the stream done", () => {
+  const s = withSchedule();
+  s.at(AQT(27, 8, 46));
+  s.get({ action: "state", tab: "Пятница 1" });
+  assert.equal(s.tabs["Пятница 1"][2][5], "3", "too late to be sure they are tests: kept");
+  assert.match(JSON.parse(s.ctx.PropertiesService.getScriptProperties().getProperty("START_CLEARED"))["Пятница 1"], /не очищено/);
+  s.at(AQT(27, 9, 0));
+  s.get({ action: "state", tab: "Пятница 1" });
+  assert.equal(s.tabs["Пятница 1"][2][5], "3", "and never later either");
+});
+
+test("start clear: each stream at its own «Начало»; a stream without «Начало» is never cleared", () => {
+  const s = withSchedule();
+  s.post({ tab: "Воскресенье 1", row: 2, name: "Петрова Анна", key: s.key["F:beam"], value: "8", expected: "" });
+  s.at(AQT(27, 8, 1)); s.get({ action: "settings" });
+  assert.equal(s.tabs["Пятница 2"][1][7], "7");
+  s.at(AQT(27, 12, 15)); s.get({ action: "tab", tab: "Пятница 2" });
+  assert.equal(s.tabs["Пятница 2"][1][7], "", "cleared at 12:15");
+  s.at(AQT(29, 20, 0)); s.get({ action: "settings" });
+  assert.equal(s.tabs["Воскресенье 1"][1][7], "8");
+});
+
+test("start clear: busy server → skipped this time, done by the next request", () => {
+  const s = withSchedule();
+  s.at(AQT(27, 8, 1));
+  s.knobs.lockBusy = true;
+  s.get({ action: "state", tab: "Пятница 1" });
+  assert.equal(s.tabs["Пятница 1"][2][5], "3");
+  s.knobs.lockBusy = false;
+  s.get({ action: "state", tab: "Пятница 1" });
+  assert.equal(s.tabs["Пятница 1"][2][5], "");
+  assert.equal(s.lock().lockDepth, 0);
+});
+
+test("start clear: costs nothing extra on normal requests (one properties read, no lock, no sheet reads)", () => {
+  const s = withSchedule();
+  s.at(AQT(27, 8, 1)); s.get({ action: "state", tab: "Пятница 1" });   // clear happens here
+  s.resetCalls();
+  s.get({ action: "state", tab: "Пятница 1" });
+  assert.deepEqual(s.calls.read, { "Настройки": 1, "Пятница 1": 1 });
+  assert.equal(s.calls.write, 0);
 });

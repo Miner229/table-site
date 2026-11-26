@@ -69,12 +69,78 @@ function streams_(values) {
   var tabCol = h.findIndex(function (c) { return /лист/.test(c); });
   var gCol = h.findIndex(function (c) { return /^пол/.test(c); });
   var aCol = h.findIndex(function (c) { return /экран|актив/.test(c); });
+  var sCol = h.findIndex(function (c) { return /^начал/.test(c); });
   var out = {};
   values.slice(hi + 1).forEach(function (r) {
     var tab = String(r[tabCol] || "").trim();
-    if (tab) out[tab] = { gender: gender_(gCol >= 0 ? r[gCol] : ""), active: aCol >= 0 && isYes_(r[aCol]) };
+    if (tab) out[tab] = { gender: gender_(gCol >= 0 ? r[gCol] : ""), active: aCol >= 0 && isYes_(r[aCol]),
+                          start: sCol >= 0 ? startMs_(r[sCol]) : null };
   });
   return out;
+}
+
+/* ---------------- test scores are cleared when a stream starts ----------------
+ * Scores typed into a stream BEFORE its «Начало» are tests. On the first request to this script
+ * after «Начало» (judge pages ask every few seconds) the stream's score cells are cleared ONCE.
+ * A judge's first real score is itself such a request, so the clear always happens before it.
+ * Safety: if nothing reached the script within 45 min after «Начало», the stream is marked done
+ * WITHOUT clearing — a late redeploy or an edited «Начало» can never wipe real results.
+ * Only apparatus columns are cleared (not ФИО, Год, Клуб, «Сумма» formulas). Logged in «Журнал». */
+var VENUE_OFFSET_MS = 5 * 3600000;          // Aktobe, UTC+5 all year — same as the site
+var CLEAR_WINDOW_MS = 45 * 60000;
+function now_() { return Date.now(); }
+// «27.11.2026 8:00» / «27.11.2026 08:00:00» / «2026-11-27 08:00» (Aktobe time) → ms, or null
+function startMs_(text) {
+  var t = String(text == null ? "" : text).trim(), m;
+  if ((m = t.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})[,\sT]+(\d{1,2})[:.](\d{2})/))) {
+    var y = +m[3]; if (y < 100) y += 2000;
+    return Date.UTC(y, +m[2] - 1, +m[1], +m[4], +m[5]) - VENUE_OFFSET_MS;
+  }
+  if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2}):(\d{2})/)))
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - VENUE_OFFSET_MS;
+  return null;
+}
+function clearedAtStart_() {
+  var raw = PropertiesService.getScriptProperties().getProperty("START_CLEARED");
+  return raw ? JSON.parse(raw) : {};
+}
+// sv: «Настройки» values already read in this request. lock: the request's lock, or null (then one is taken here).
+function autoClear_(sv, lock) {
+  var all = streams_(sv), t = now_();
+  var due = function (done) {
+    return Object.keys(all).filter(function (tab) { var s = all[tab]; return s.start != null && s.start <= t && !done[tab]; });
+  };
+  if (!due(clearedAtStart_()).length) return;          // the usual case: nothing to do, no lock needed
+  var own = !lock;
+  if (own) { lock = LockService.getScriptLock(); if (!lock.tryLock(10000)) return; }   // busy: the next request does it
+  else lock_(lock);                                     // the request's own lock (kept for its write that follows)
+  try {
+    var done = clearedAtStart_();                       // re-read under the lock: another request may have done it
+    due(done).forEach(function (tab) {
+      var s = all[tab];
+      if (t - s.start > CLEAR_WINDOW_MS) { done[tab] = "не очищено (позже 45 мин)"; return; }
+      var sh = SpreadsheetApp.getActive().getSheetByName(tab);
+      if (!sh) { done[tab] = "нет вкладки"; return; }
+      var values = sh.getDataRange().getDisplayValues();
+      var hi = headerIndex_(values), head = values[hi], n = 0;
+      var nameCol = head.findIndex(function (c) { return /^фио/.test(norm_(c)); });
+      var startCol = head.findIndex(function (c) { return /старт/.test(norm_(c)); });
+      head.forEach(function (h, c) {
+        if (c === nameCol || c === startCol || !appFromText_(h, s.gender)) return;
+        var filled = 0;
+        for (var r = hi + 1; r < values.length; r++) if (String(values[r][c]).trim() !== "") filled++;
+        if (!filled) return;
+        sh.getRange(hi + 2, c + 1, values.length - hi - 1, 1).clearContent();
+        n += filled;
+      });
+      done[tab] = new Date(t).toISOString();
+      if (n) safeLog_([new Date(t), "Старт потока", tab, "", "Тестовые оценки удалены перед стартом", n + " шт.", "очищено"]);
+    });
+    PropertiesService.getScriptProperties().setProperty("START_CLEARED", JSON.stringify(done));
+    SpreadsheetApp.flush();
+  } finally {
+    if (own) { try { lock.releaseLock(); } catch (x) {} }
+  }
 }
 function isYes_(v) { return /^(да|yes|1|\+|x|х|✓)/.test(norm_(v)); }
 // Stream chosen by the organiser («На экране» = да). While one is chosen, scores go ONLY there.
@@ -148,11 +214,12 @@ function headerIndex_(values) {
 function doGet(e) {
   try {
     var p = e.parameter || {};
-    if (p.action === "settings") return json_({ ok: true, values: settingsValues_() });
+    if (p.action === "settings") { var sv0 = settingsValues_(); autoClear_(sv0, null); return json_({ ok: true, values: sv0 }); }
     // Judges poll this: settings + the stream they are on, in ONE call (every call costs ~1.5 s).
     // «Настройки» is read once and also used to check that the tab is a stream.
     if (p.action === "state") {
       var sv = settingsValues_();
+      autoClear_(sv, null);                               // before reading the tab: the judge sees the cleared stream
       var out = { ok: true, settings: sv };
       if (p.tab && streams_(sv)[p.tab]) {
         var tsh = SpreadsheetApp.getActive().getSheetByName(p.tab);
@@ -161,7 +228,9 @@ function doGet(e) {
       return json_(out);
     }
     if (p.action === "tab") {
-      if (!streams_()[p.tab]) throw new Error("Поток не найден в «Настройках»");
+      var sv1 = settingsValues_();
+      if (!streams_(sv1)[p.tab]) throw new Error("Поток не найден в «Настройках»");
+      autoClear_(sv1, null);
       return json_({ ok: true, values: sheet_(p.tab).getDataRange().getDisplayValues() });
     }
     if (p.action === "adminCheck") { checkAdmin_(p.key); return json_({ ok: true }); }
@@ -189,7 +258,9 @@ function doPost(e) {
     if (b.action === "score") {
       // Judge: the apparatus comes ONLY from the key. A score can be entered ONCE.
       var j = judge_(b.key);
-      var all = streams_();
+      var sv = settingsValues_();
+      var all = streams_(sv);
+      autoClear_(sv, lock);                               // a first real score after «Начало» clears the tests first
       var st = all[b.tab];
       if (!st) throw new Error("Поток не найден в «Настройках»");
       if (st.gender !== j.gender) throw new Error("Этот поток не для вашего снаряда");
@@ -200,7 +271,9 @@ function doPost(e) {
     if (b.action === "fix") {
       // Secretary: corrects or clears any score in any stream, with the secretary code.
       checkSecretary_(b.secret);
-      var sst = streams_()[b.tab];
+      var ssv = settingsValues_();
+      autoClear_(ssv, lock);
+      var sst = streams_(ssv)[b.tab];
       if (!sst) throw new Error("Поток не найден в «Настройках»");
       if (ORDER[sst.gender].indexOf(b.app) < 0) throw new Error("Нет такого снаряда в этом потоке");
       return json_(writeScore_(lock, b, sst.gender, b.app, "secretary"));
