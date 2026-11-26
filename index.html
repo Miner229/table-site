@@ -533,24 +533,30 @@ let switchT = null;       // fires exactly at the next «Начало»
 let failSince = 0, lastOk = 0;
 
 // One refresh at a time; a call during a refresh runs once more afterwards.
-// fast = use the settings already loaded (the scheduled switch: no network wait at that moment).
+// mode: undefined/false = full (settings + stream) · "poll" = the 10 s timer: the stream every time,
+// «Настройки» only every 30 s (they rarely change; halves the requests from every screen and phone)
+// · true = use the settings already loaded (the scheduled switch: no network wait at that moment).
+const SETTINGS_EVERY = 30000;
+let settingsAt = 0;
 let busy = null, again = null;
-function refresh(fast) {
-  if (busy) { again = again === null ? !!fast : again && !!fast; return busy; }
-  busy = doRefresh(!!fast).catch(e => console.error(e)).finally(() => {
+const MODE_RANK = m => (m === true ? 2 : m === "poll" ? 1 : 0);   // a queued full refresh wins
+function refresh(mode) {
+  if (busy) { if (again === null || MODE_RANK(mode) < MODE_RANK(again)) again = mode || false; return busy; }
+  busy = doRefresh(mode).catch(e => console.error(e)).finally(() => {
     busy = null;
-    if (again !== null) { const f = again; again = null; refresh(f); }
+    if (again !== null) { const m = again; again = null; refresh(m); }
   });
   return busy;
 }
-async function doRefresh(fast) {
-  if (!fast || !settings.length) {
+async function doRefresh(mode) {
+  const stale = state.src === "demo" || Date.now() - settingsAt >= SETTINGS_EVERY;
+  if (!settings.length || !mode || (mode === "poll" && stale)) {
     let s;
     try {
       s = await A.loadSettings(state.src);
       if (!s.length) throw new Error("Во вкладке «Настройки» нет потоков");
     } catch (e) { return failed(e); }
-    settings = s;
+    settings = s; settingsAt = Date.now();
   }
   fillStreamSelect();
   const p = pickStream();
@@ -873,7 +879,8 @@ function startCycle() {
 }
 function startRefresh() {
   clearInterval(refreshTimer);
-  refreshTimer = setInterval(() => refresh(), state.src === "demo" ? 2000 : 10000);
+  // phones in a pocket / a background tab don't poll; they refresh at once when shown again
+  refreshTimer = setInterval(() => { if (!document.hidden) refresh("poll"); }, state.src === "demo" ? 2000 : 10000);
 }
 
 /* ---------- demo judges simulation ---------- */
@@ -1153,6 +1160,7 @@ $("appsNav").onclick = e => {
   if (i >= 0) { stepIdx = i; render(true); startCycle(); }
 };
 window.addEventListener("storage", e => { if (e.key === A.DEMO_KEY && state.src === "demo") refresh(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && stream) refresh("poll"); });
 let resizeT;
 window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (stream) { lastKey = ""; buildSteps(); render(false); } }, 200); });
 

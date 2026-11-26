@@ -531,6 +531,17 @@ async function tabExists(src, tab) {
   const [a, b] = await Promise.all([gvizText(tab), gvizText("__нет_такой_вкладки_" + Date.now())]);
   return a !== b;
 }
+// Judges: settings + one stream tab in ONE Apps Script call (each call costs ~1.5 s before any work).
+// Returns { settings, tab, values } — tab/values only if `tab` is a stream in «Настройки».
+// Returns null when this is not the script source or the deployed script is older and has no
+// «state» action — the caller then falls back to loadSettings() + loadStream().
+let stateSupported = true;   // an older script answered without «settings» → don't ask again this session
+async function loadState(src, tab) {
+  if (src !== "script" || !stateSupported) return null;
+  const j = await scriptGet({ action: "state", tab: tab || "" });
+  if (!Array.isArray(j.settings)) { stateSupported = false; return null; }
+  return { settings: parseSettings(j.settings), tab: j.tab || null, values: Array.isArray(j.values) ? j.values : null };
+}
 async function loadStream(src, st) {
   if (src === "demo") return parseStream(demoInit().tabs[st.tab] || [], st.gender, 1);
   if (src === "script") return parseStream((await scriptGet({ action: "tab", tab: st.tab })).values, st.gender, 1);
@@ -544,7 +555,7 @@ global.ArtVin = {
   streamWarnings, isApparatusLabel, looksLikePerson, parseTimes,
   scriptGet, scriptPost, scriptUrl, sameScore,
   demoInit, demoSave, randomScore, DEMO_KEY,
-  loadSettings, loadStream, tabExists,
+  loadSettings, loadStream, loadState, tabExists,
   VENUE, venueParts, venueMinutes, venueDay, fmtVenueTime, fmtVenueDate, parseStart,
   activeStream, startsLabel, scheduleCheck,
 };

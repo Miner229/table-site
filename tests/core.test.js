@@ -6,13 +6,14 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-function loadCore() {
+function loadCore(fetchStub) {
   const store = {};
   const ctx = {
     window: {},
     localStorage: { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
     location: { search: "" },
     URLSearchParams, console, Date, Math, JSON, Number, String, Array, Object, Set, RegExp, Error,
+    fetch: fetchStub, AbortController, setTimeout, clearTimeout,
   };
   ctx.window = ctx;
   vm.createContext(ctx);
@@ -370,4 +371,43 @@ test("separator labels from real start lists: typo, trailing space, case — but
   deq(s.gymnasts.map(g => [g.name, g.start]), [["Вольнов Иван", "floor"], ["Брусилов Артём", "pbars"], ["Конев Олег", "vault"]]);
   const f = A.parseStream([["№", "ФИО", "Год"], ["", "Разновысокие брусья"], ["1", "Петрова Анна", "2016"]], "F", 1);
   assert.equal(f.gymnasts[0].start, "ubars");
+});
+
+/* ---------------- judge reads: one call instead of two, safe with an older deployed script ---------------- */
+const SETTINGS_ROWS = [["Поток", "Лист", "Пол"], ["Пт 1", "Пятница 1", "М"]];
+const TAB_ROWS = [M_HEAD, ["1", "Иванов Иван", "2017", "Клуб", "Вольные", "", "", "", "", "", "", ""]];
+function fakeServer(supportsState) {
+  const asked = [];
+  const fetch = async url => {
+    const p = Object.fromEntries(new URL(url).searchParams);
+    asked.push(p.action);
+    let body;
+    if (p.action === "state" && supportsState) body = { ok: true, settings: SETTINGS_ROWS, tab: p.tab || undefined, values: p.tab ? TAB_ROWS : undefined };
+    else if (p.action === "settings") body = { ok: true, values: SETTINGS_ROWS };
+    else if (p.action === "tab") body = { ok: true, values: TAB_ROWS };
+    else body = { ok: true, service: "ArtVin Cup scores" };   // what the old script answers to an unknown action
+    return { ok: true, json: async () => body };
+  };
+  return { fetch, asked };
+}
+
+test("loadState: settings + stream in one request when the script supports it", async () => {
+  const srv = fakeServer(true);
+  const C = loadCore(srv.fetch);
+  const s = await C.loadState("script", "Пятница 1");
+  assert.equal(srv.asked.length, 1);
+  assert.equal(s.settings[0].tab, "Пятница 1");
+  assert.equal(s.tab, "Пятница 1");
+  assert.equal(C.parseStream(s.values, "M", 1).gymnasts[0].name, "Иванов Иван");
+  assert.equal(await C.loadState("sheet", "Пятница 1"), null, "board/secretary keep reading the sheet directly");
+  assert.equal(await C.loadState("demo", "Пятница 1"), null);
+});
+
+test("loadState: older deployed script → falls back, and stops asking after the first try", async () => {
+  const srv = fakeServer(false);
+  const C = loadCore(srv.fetch);
+  assert.equal(await C.loadState("script", "Пятница 1"), null);
+  assert.equal(await C.loadState("script", "Пятница 1"), null);
+  deq(srv.asked, ["state"], "one probe only — no extra request on every poll");
+  assert.equal((await C.loadSettings("script"))[0].tab, "Пятница 1");
 });

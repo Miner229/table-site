@@ -192,10 +192,20 @@ async function writeScore(g, value, expected) {
 // Same rule as the board (A.activeStream): «да» override, else «Начало» in Aktobe time.
 let offStream = null;
 let pick = null, autoPick = null, switchT = null, failSince = 0;
+// A read takes 2–7 s. Two rules keep old data from overwriting what the judge just saved:
+//  - one load at a time (a poll during a load runs once right after it, never in parallel);
+//  - a load that was running while a score was saved is thrown away — it may have read the sheet
+//    before the save. The next poll brings the fresh data.
+let loading = false, again = false, saveSeq = 0;
 async function load() {
-  if (!me) return;   // logged out
+  if (!me) return;                          // logged out
+  if (loading) { again = true; return; }    // run once more right after the current one
+  loading = true;
+  const saves = saveSeq;
   try {
-    const all = await A.loadSettings(SRC);
+    // one request when the server supports it: settings + the stream we are on
+    const st = await A.loadState(SRC, current && current.tab);
+    const all = st ? st.settings : await A.loadSettings(SRC);
     settings = all.filter(s => s.gender === me.gender);
     if (!settings.length) throw new Error("Нет потоков для этого снаряда");
     autoPick = A.activeStream(all, Date.now(), me.gender);
@@ -209,7 +219,10 @@ async function load() {
     if (current && target.tab !== current.tab && document.querySelector(".g input[data-dirty]")) {
       target = settings.find(s => s.tab === current.tab) || current;
     }
-    const data = await A.loadStream(SRC, target);
+    const data = st && st.tab === target.tab && st.values
+      ? A.parseStream(st.values, target.gender, 1)
+      : await A.loadStream(SRC, target);           // first load or a stream switch: one more request
+    if (saves !== saveSeq) { again = true; return; }   // a score was saved meanwhile: this copy may be older — read again
     if (current && target.tab !== current.tab && document.querySelector(".g input[data-dirty]")) return;   // started typing meanwhile
     current = target; stream = data;
     info = A.currentRotation(stream, current, null);
@@ -224,6 +237,9 @@ async function load() {
     // keep the list and typed scores; only after ~60 s of failures say so
     if (!failSince) failSince = Date.now();
     if (!stream || Date.now() - failSince >= 60000) setFoot(false, e.message);
+  } finally {
+    loading = false;
+    if (again) { again = false; setTimeout(load, 0); }
   }
 }
 function rotText() {
@@ -390,6 +406,7 @@ async function submit(el, forced) {
 }
 // keep both the row we edited and the latest loaded copy of the stream in sync
 function setLocal(g, raw) {
+  saveSeq++;   // any load still running now may hold an older copy of this cell
   const val = { raw, num: A.parseScore(raw) };
   g.scores[me.app] = val;
   const fresh = stream && stream.gymnasts.find(x => x.row === g.row && x.name === g.name);

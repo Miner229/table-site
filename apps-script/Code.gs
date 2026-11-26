@@ -58,8 +58,10 @@ function judge_(key) {
   var p = v.split(":");
   return { gender: p[0], app: p[1] };
 }
-function streams_() {
-  var values = sheet_(SETTINGS_TAB).getDataRange().getDisplayValues();
+function settingsValues_() { return sheet_(SETTINGS_TAB).getDataRange().getDisplayValues(); }
+// values: «Настройки» already read in this request (saves a second read of the tab)
+function streams_(values) {
+  values = values || settingsValues_();
   var hi = -1;
   for (var i = 0; i < values.length; i++) if (values[i].some(function (c) { return /лист/.test(norm_(c)); })) { hi = i; break; }
   if (hi < 0) throw new Error("Во вкладке «Настройки» нет колонки «Лист»");
@@ -128,7 +130,18 @@ function headerIndex_(values) {
 function doGet(e) {
   try {
     var p = e.parameter || {};
-    if (p.action === "settings") return json_({ ok: true, values: sheet_(SETTINGS_TAB).getDataRange().getDisplayValues() });
+    if (p.action === "settings") return json_({ ok: true, values: settingsValues_() });
+    // Judges poll this: settings + the stream they are on, in ONE call (every call costs ~1.5 s).
+    // «Настройки» is read once and also used to check that the tab is a stream.
+    if (p.action === "state") {
+      var sv = settingsValues_();
+      var out = { ok: true, settings: sv };
+      if (p.tab && streams_(sv)[p.tab]) {
+        var tsh = SpreadsheetApp.getActive().getSheetByName(p.tab);
+        if (tsh) { out.tab = p.tab; out.values = tsh.getDataRange().getDisplayValues(); }
+      }
+      return json_(out);
+    }
     if (p.action === "tab") {
       if (!streams_()[p.tab]) throw new Error("Поток не найден в «Настройках»");
       return json_({ ok: true, values: sheet_(p.tab).getDataRange().getDisplayValues() });
@@ -147,11 +160,11 @@ function doPost(e) {
     var b = JSON.parse(e.postData.contents);
     if (b.action === "setStream") {
       checkAdmin_(b.admin);
-      lock.waitLock(15000);
+      lock_(lock);
       var tab = String(b.tab || "").trim();
       setStream_(tab);
       SpreadsheetApp.flush();
-      log_([new Date(), "Организатор", tab || "по расписанию", "", "Поток для судей и табло", "", tab ? "да" : "расписание"]);
+      safeLog_([new Date(), "Организатор", tab || "по расписанию", "", "Поток для судей и табло", "", tab ? "да" : "расписание"]);
       return json_({ ok: true, tab: tab });
     }
     if (b.action !== "score") throw new Error("Неизвестное действие");
@@ -172,7 +185,7 @@ function doPost(e) {
       if (value < 0 || value > MAX_SCORE) throw new Error("Оценка должна быть от 0 до " + MAX_SCORE);
     }
 
-    lock.waitLock(15000);
+    lock_(lock);
     var sh = sheet_(b.tab);
     var values = sh.getDataRange().getDisplayValues();
     var hi = headerIndex_(values);
@@ -200,7 +213,7 @@ function doPost(e) {
     if (sameScore_(old, value === "" ? "" : String(value))) return json_({ ok: true, unchanged: true });
     if (value === "") cell.clearContent(); else cell.setValue(value);
     SpreadsheetApp.flush();
-    log_([new Date(), APPS[j.app] + (j.gender === "F" ? " (Ж)" : " (М)"), b.tab, row, b.name, old, value === "" ? "удалено" : value]);
+    safeLog_([new Date(), APPS[j.app] + (j.gender === "F" ? " (Ж)" : " (М)"), b.tab, row, b.name, old, value === "" ? "удалено" : value]);
     return json_({ ok: true });
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err) });
@@ -216,6 +229,15 @@ function sameScore_(a, b) {
   return isFinite(nx) && isFinite(ny) ? Math.abs(nx - ny) < 1e-9 : x === y;
 }
 
+// Many judges save at the same moment: wait up to 15 s for the others, then say so in Russian.
+function lock_(lock) {
+  if (!lock.tryLock(15000)) throw new Error("Сервер занят — нажмите ✓ ещё раз");
+}
+// The score is already written when we log it: a problem with «Журнал» must not turn a saved
+// score into «Не сохранено» (the judge would retry and get a false «conflict»).
+function safeLog_(row) {
+  try { log_(row); } catch (e) { console.error("Журнал: " + e); }
+}
 function log_(row) {
   var ss = SpreadsheetApp.getActive();
   var sh = ss.getSheetByName(LOG_TAB);

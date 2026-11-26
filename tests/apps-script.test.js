@@ -24,27 +24,34 @@ function setup() {
   const log = [];
   let props = {};
   let lockDepth = 0, maxLockDepth = 0, slept = 0;
+  // knobs for failure tests, and a count of every Sheets call (each one costs time in Apps Script)
+  const knobs = { lockBusy: false, logFails: false };
+  const calls = { read: {}, cell: 0, write: 0, append: 0, flush: 0 };
+  const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
   const sheet = name => ({
-    getDataRange: () => ({ getDisplayValues: () => tabs[name].map(r => r.map(String)) }),
+    getDataRange: () => ({ getDisplayValues: () => { bump(calls.read, name); return tabs[name].map(r => r.map(String)); } }),
     getRange: (r, c) => ({
-      getDisplayValue: () => (tabs[name][r - 1][c - 1] ?? ""),
-      setValue: v => { while (tabs[name].length < r) tabs[name].push([]); tabs[name][r - 1][c - 1] = String(v); },
-      clearContent: () => { tabs[name][r - 1][c - 1] = ""; },
+      getDisplayValue: () => { calls.cell++; return tabs[name][r - 1][c - 1] ?? ""; },
+      setValue: v => { calls.write++; while (tabs[name].length < r) tabs[name].push([]); tabs[name][r - 1][c - 1] = String(v); },
+      clearContent: () => { calls.write++; tabs[name][r - 1][c - 1] = ""; },
     }),
-    appendRow: row => log.push(row),
+    appendRow: row => { if (knobs.logFails) throw new Error("Журнал защищён"); calls.append++; log.push(row); tabs[name].push(row.map(String)); },
     getLastColumn: () => Math.max(0, ...tabs[name].map(r => { let n = r.length; while (n && r[n - 1] === "") n--; return n; })),
     setFrozenRows: () => {},
   });
   const ctx = {
     SpreadsheetApp: {
-      getActive: () => ({ getSheetByName: n => (tabs[n] || n === "Журнал" ? sheet(n) : null), insertSheet: n => { tabs[n] = []; return sheet(n); } }),
-      flush: () => {},
+      getActive: () => ({ getSheetByName: n => (tabs[n] ? sheet(n) : null), insertSheet: n => { tabs[n] = []; return sheet(n); } }),
+      flush: () => { calls.flush++; },
     },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k], setProperty: (k, v) => { props[k] = v; } }) },
-    LockService: { getScriptLock: () => ({
-      waitLock: () => { lockDepth++; maxLockDepth = Math.max(maxLockDepth, lockDepth); },
-      releaseLock: () => { lockDepth = Math.max(0, lockDepth - 1); },
-    }) },
+    LockService: { getScriptLock: () => {
+      let held = false;
+      return {
+        tryLock: () => { if (knobs.lockBusy) return false; held = true; lockDepth++; maxLockDepth = Math.max(maxLockDepth, lockDepth); return true; },
+        releaseLock: () => { if (held) { held = false; lockDepth = Math.max(0, lockDepth - 1); } },
+      };
+    } },
     Utilities: { sleep: ms => { slept += ms; } },
     ContentService: { createTextOutput: s => ({ setMimeType: () => JSON.parse(s) }), MimeType: { JSON: 1 } },
   };
@@ -54,7 +61,9 @@ function setup() {
   const keys = ctx.makeKeys_();
   const key = {}; Object.keys(keys).forEach(k => { key[keys[k]] = k; });
   const post = b => ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ action: "score" }, b)) } });
-  return { ctx, tabs, key, keys, post, log, lock: () => ({ lockDepth, maxLockDepth }), slept: () => slept };
+  const get = p => JSON.parse(JSON.stringify(ctx.doGet({ parameter: p })));
+  const resetCalls = () => { calls.read = {}; calls.cell = calls.write = calls.append = calls.flush = 0; };
+  return { ctx, tabs, key, keys, post, get, log, knobs, calls, resetCalls, lock: () => ({ lockDepth, maxLockDepth }), slept: () => slept };
 }
 const IVANOV = { tab: "Пятница 1", row: 3, name: "Иванов Иван" };
 
@@ -242,4 +251,163 @@ test("new codes also renew the organiser code", () => {
   const a = ctx.adminKey_();
   ctx.makeKeys_();
   assert.notEqual(ctx.adminKey_(), a);
+});
+
+/* ================= CRUD of every operation, failures, and cost (Sheets calls) ================= */
+
+test("score CRUD: create → read → update → delete, each step logged with old → new value", () => {
+  const { tabs, key, post, get, log } = setup();
+  const k = key["M:rings"], col = 7;
+  const cell = () => tabs["Пятница 1"][2][col];
+  const readBack = () => get({ action: "state", tab: "Пятница 1" }).values[2][col];
+
+  assert.equal(post({ ...IVANOV, key: k, value: "9.25", expected: "" }).ok, true);          // C
+  assert.equal(cell(), "9.25");
+  assert.equal(readBack(), "9.25");                                                         // R
+  assert.equal(post({ ...IVANOV, key: k, value: "9,4", expected: "9.25" }).ok, true);       // U (comma accepted)
+  assert.equal(cell(), "9.4");
+  assert.equal(post({ ...IVANOV, key: k, value: "", expected: "9.4" }).ok, true);           // D
+  assert.equal(cell(), "");
+  assert.equal(readBack(), "");
+  assert.deepEqual(log.map(r => [r[5], r[6]]), [["", 9.25], ["9.25", 9.4], ["9.4", "удалено"]]);
+  // deleting an empty cell again: nothing to do, nothing logged
+  assert.equal(post({ ...IVANOV, key: k, value: "", expected: "" }).unchanged, true);
+  assert.equal(log.length, 3);
+});
+
+test("score «0» = did not compete is stored as 0, not as empty", () => {
+  const { tabs, key, post } = setup();
+  assert.equal(post({ ...IVANOV, key: key["M:floor"], value: "0", expected: "" }).ok, true);
+  assert.equal(tabs["Пятница 1"][2][5], "0");
+});
+
+test("every rejected request leaves the sheet and the log untouched", () => {
+  const { tabs, key, post, ctx, log } = setup();
+  const k = key["M:floor"];
+  const bad = [
+    [{ ...IVANOV, key: k, value: "abc" }, /формат/],
+    [{ ...IVANOV, key: k, value: "10.5" }, /от 0 до 10/],
+    [{ ...IVANOV, key: k, value: "-1" }, /формат/],
+    [{ ...IVANOV, key: k, value: "1e1" }, /формат/],
+    [{ ...IVANOV, key: k, value: "9.1234" }, /формат/],
+    [{ ...IVANOV, key: k, value: "100" }, /формат/],
+    [{ ...IVANOV, row: 0, key: k, value: "9" }, /Неверная строка/],
+    [{ ...IVANOV, row: 999, key: k, value: "9" }, /Неверная строка/],
+    [{ ...IVANOV, row: "3; DROP", key: k, value: "9" }, /Неверная строка/],
+    [{ ...IVANOV, name: "Другой Человек", key: k, value: "9" }, /Список изменился/],
+    [{ ...IVANOV, tab: "Нет такого", key: k, value: "9" }, /Поток не найден/],
+    [{ tab: "Воскресенье 1", row: 2, name: "Петрова Анна", key: k, value: "9" }, /не для вашего снаряда/],
+    [{ ...IVANOV, key: "", value: "9" }, /Неверный код/],
+    [{ ...IVANOV, key: k, value: "9.5", expected: "9" }, /изменили на другом устройстве/],
+  ];
+  const before = JSON.stringify(tabs);
+  bad.forEach(([body, re]) => {
+    const r = post(body);
+    assert.equal(r.ok, false, JSON.stringify(body));
+    assert.match(r.error, re, JSON.stringify(body));
+  });
+  assert.match(ctx.doPost({ postData: { contents: "{not json" } }).error, /JSON|Unexpected|Expected/);
+  assert.match(ctx.doPost({ postData: { contents: JSON.stringify({ action: "drop" }) } }).error, /Неизвестное действие/);
+  assert.equal(JSON.stringify(tabs), before);
+  assert.equal(log.length, 0);
+});
+
+test("«Журнал» is created with a header on the first write", () => {
+  const { tabs, key, post } = setup();
+  delete tabs["Журнал"];
+  assert.equal(post({ ...IVANOV, key: key["M:hbar"], value: "8", expected: "" }).ok, true);
+  assert.deepEqual([...tabs["Журнал"][0]], ["Время", "Снаряд", "Поток", "Строка", "ФИО", "Было", "Стало"]);
+  assert.equal(tabs["Журнал"].length, 2);
+});
+
+test("a broken «Журнал» never turns a saved score into an error", () => {
+  const { tabs, key, post, knobs } = setup();
+  knobs.logFails = true;
+  const r = post({ ...IVANOV, key: key["M:vault"], value: "9.1", expected: "" });
+  assert.equal(r.ok, true, "the judge must see «Сохранено» — the score IS in the sheet");
+  assert.equal(tabs["Пятница 1"][2][8], "9.1");
+  // a retry by the judge is harmless (same value → unchanged), not a false conflict
+  assert.equal(post({ ...IVANOV, key: key["M:vault"], value: "9.1", expected: "9.1" }).unchanged, true);
+});
+
+test("server busy: clear Russian message, nothing written, lock not left held", () => {
+  const { tabs, key, post, knobs, lock, log } = setup();
+  knobs.lockBusy = true;
+  const r = post({ ...IVANOV, key: key["M:pommel"], value: "9", expected: "" });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /Сервер занят/);
+  assert.equal(tabs["Пятница 1"][2][6], "");
+  assert.equal(log.length, 0);
+  knobs.lockBusy = false;
+  assert.equal(post({ ...IVANOV, key: key["M:pommel"], value: "9", expected: "" }).ok, true);
+  assert.equal(lock().lockDepth, 0);
+});
+
+test("stream switch CRUD: set «да», move it, back to schedule; adds «На экране» if the column is missing", () => {
+  const { tabs, ctx } = setup();
+  tabs["Настройки"] = tabs["Настройки"].map(r => r.slice(0, 6));   // no «На экране» column at all
+  const admin = ctx.adminKey_();
+  const set = tab => ctx.doPost({ postData: { contents: JSON.stringify({ action: "setStream", admin, tab }) } });
+  const yes = () => tabs["Настройки"].slice(1).map(r => r[6] || "");
+  assert.equal(set("Пятница 2").ok, true);
+  assert.equal(tabs["Настройки"][0][6], "На экране");
+  assert.deepEqual(yes(), ["", "да", ""]);
+  assert.equal(set("Воскресенье 1").ok, true);
+  assert.deepEqual(yes(), ["", "", "да"]);
+  assert.equal(set("").ok, true);
+  assert.deepEqual(yes(), ["", "", ""]);
+  assert.match(set("Нет такого").error, /не найден/);
+  assert.deepEqual(yes(), ["", "", ""], "a failed switch changes nothing");
+});
+
+test("«state» read: settings + stream in one call; never leaks tabs that are not streams", () => {
+  const { get, tabs } = setup();
+  const s = get({ action: "state", tab: "Пятница 2" });
+  assert.equal(s.ok, true);
+  assert.equal(s.settings.length, 4);
+  assert.equal(s.tab, "Пятница 2");
+  assert.equal(s.values.length, 2);
+  const first = get({ action: "state" });                       // first load: no tab yet
+  assert.equal(first.settings.length, 4);
+  assert.equal(first.values, undefined);
+  assert.equal(get({ action: "state", tab: "Журнал" }).values, undefined, "only tabs listed in «Настройки»");
+  tabs["Настройки"].push(["Пропал", "Удалённая вкладка", "М", "1", "авто", "", ""]);
+  const gone = get({ action: "state", tab: "Удалённая вкладка" });
+  assert.equal(gone.ok, true, "a deleted stream tab must not break the judges' settings read");
+  assert.equal(gone.values, undefined);
+});
+
+test("cost: Sheets calls per operation (each call is time inside Apps Script)", () => {
+  const { key, post, get, calls, resetCalls } = setup();
+  const reads = () => Object.values(calls.read).reduce((a, b) => a + b, 0);
+
+  // judge poll, new way: ONE request that reads «Настройки» once and the stream once
+  resetCalls(); get({ action: "state", tab: "Пятница 1" });
+  assert.deepEqual(calls.read, { "Настройки": 1, "Пятница 1": 1 });
+
+  // judge poll, old way: TWO requests, «Настройки» read twice
+  resetCalls(); get({ action: "settings" }); get({ action: "tab", tab: "Пятница 1" });
+  assert.deepEqual(calls.read, { "Настройки": 2, "Пятница 1": 1 });
+
+  // one score write: settings 1×, stream 1×, one cell read, one write, one flush, one log row
+  resetCalls(); post({ ...IVANOV, key: key["M:rings"], value: "9", expected: "" });
+  assert.equal(reads(), 2);
+  assert.deepEqual([calls.cell, calls.write, calls.flush, calls.append], [1, 1, 1, 1]);
+
+  // a rejected write stops before touching the stream tab
+  resetCalls(); post({ ...IVANOV, key: key["M:rings"], value: "abc" });
+  assert.equal(calls.read["Пятница 1"] || 0, 0);
+  assert.equal(calls.write + calls.append, 0);
+});
+
+test("scale: a 500-gymnast stream costs the same number of Sheets calls and stays fast", () => {
+  const { tabs, key, post, calls, resetCalls } = setup();
+  const head = tabs["Пятница 1"][0];
+  for (let i = 0; i < 500; i++) tabs["Пятница 1"].push([String(i + 3), `Фамилия${i} Имя${i}`, "2017", "Клуб", ""].concat(new Array(head.length - 5).fill("")));
+  resetCalls();
+  const t = process.hrtime.bigint();
+  for (let i = 0; i < 50; i++) assert.equal(post({ tab: "Пятница 1", row: 5 + i, name: `Фамилия${i} Имя${i}`, key: key["M:floor"], value: "9", expected: "" }).ok, true);
+  const msPerWrite = Number(process.hrtime.bigint() - t) / 1e6 / 50;
+  assert.equal(calls.read["Пятница 1"], 50, "one read of the stream per write, whatever its size");
+  assert.ok(msPerWrite < 20, `script-side work per write: ${msPerWrite.toFixed(2)} ms`);
 });
