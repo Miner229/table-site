@@ -177,7 +177,7 @@ main {
 .row.fresh::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   box-shadow: inset 0 0 0 3px var(--gold-1); background: rgba(255,230,168,.12);
-  animation: fresh 3.5s ease-out forwards;
+  animation: fresh 3.5s ease-out var(--fresh-delay, 0ms) forwards;
 }
 @keyframes fresh { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 
@@ -500,7 +500,22 @@ let steps = [];           // [{ app, page, pages }]
 let stepIdx = 0;
 let pinnedApp = null;     // phone: apparatus chosen by tap (null = auto)
 let timer = null, refreshTimer = null, simTimer = null;
-const lastScores = {};    // "tab|app|idx" -> raw
+// «New score» highlight. Every refresh compares ALL scores of the stream with the previous refresh
+// and notes the moment each one changed. A row is highlighted only for FRESH_MS after its score
+// really arrived — not later when the board cycles back to that table (that looked random).
+const FRESH_MS = 3500;
+const seenScores = {};    // "tab|app|name" -> raw at the last refresh
+const freshAt = {};       // "tab|app|name" -> time the new score arrived
+const scoreKey = (tab, app, g) => `${tab}|${app}|${A.norm(g.name)}`;
+function noteScores(tab, data) {
+  const now = Date.now();
+  data.gymnasts.forEach(g => data.apps.forEach(app => {
+    const k = scoreKey(tab, app, g);
+    const raw = (g.scores[app] || {}).raw || "";
+    if (k in seenScores && seenScores[k] !== raw && raw !== "") freshAt[k] = now;
+    seenScores[k] = raw;
+  }));
+}
 let lastKey = "";
 let skipHold = false;     // demo «Следующая ротация»: switch without the pause
 
@@ -555,6 +570,7 @@ async function doRefresh(mode) {
     delete shownRot[tab]; delete pending[tab]; delete announced[tab];
     preload = null;
   }
+  noteScores(p.stream.tab, data);
   current = p.stream; pick = p; stream = data;
   computeRotation();
   buildSteps();
@@ -749,14 +765,12 @@ function render(advanced) {
   const ranked = A.rankList(groups[step.app], step.app);
   const slice = ranked.slice(step.page * step.per, (step.page + 1) * step.per);
 
-  // detect fresh scores
-  const fresh = new Set();
-  ranked.forEach(it => {
-    const k = `${current.tab}|${step.app}|${it.g.idx}`;
-    const raw = (it.g.scores[step.app] || {}).raw || "";
-    if (lastScores[k] !== undefined && lastScores[k] !== raw && raw !== "") fresh.add(it.g.idx);
-    lastScores[k] = raw;
-  });
+  // rows whose score arrived in the last FRESH_MS (time already passed → shorter remaining glow)
+  const nowMs = Date.now();
+  const freshAge = it => {
+    const t = freshAt[scoreKey(current.tab, step.app, it.g)];
+    return t != null && nowMs - t < FRESH_MS ? nowMs - t : null;
+  };
 
   const key = `${current.tab}|${step.app}|${step.page}|${rotInfo.shown}`;
   const sameView = key === lastKey;
@@ -767,11 +781,12 @@ function render(advanced) {
   t.innerHTML = slice.map(it => {
     const cls = ["row", it.status];
     if (it.status === "scored" && it.place === 1) cls.push("p1");
-    if (fresh.has(it.g.idx) && state.anim) cls.push("fresh");
+    const age = state.anim ? freshAge(it) : null;
+    if (age != null) cls.push("fresh");
     // ranking order is unchanged; only the number shown is simplified
     const place = it.status === "scored" && it.place === 1 ? 1 : "";   // only 1st place is shown
     const score = it.status === "scored" ? A.fmtScore(it.score) : it.status === "dns" ? "н/я" : "ожидает";
-    return `<div class="${cls.join(" ")}" data-k="${it.g.idx}">
+    return `<div class="${cls.join(" ")}" data-k="${it.g.idx}"${age ? ` style="--fresh-delay:-${age}ms"` : ""}>
       <span class="place">${place}</span>
       <span class="name"><span>${fmtName(it.g.name)}</span></span>
       <span class="score">${score}</span>
@@ -862,7 +877,10 @@ function startCycle() {
 function startRefresh() {
   clearInterval(refreshTimer);
   // phones in a pocket / a background tab don't poll; they refresh at once when shown again
-  refreshTimer = setInterval(() => { if (!document.hidden) refresh("poll"); }, state.src === "demo" ? 2000 : 10000);
+  // Hall screen (?screen=1): every 4 s, so a judge's score is up within ~2 s on average (one download
+  // takes ~1.3 s). Parents' phones: every 10 s — hundreds of phones on one venue Wi-Fi must not hammer Google.
+  refreshTimer = setInterval(() => { if (!document.hidden) refresh("poll"); },
+    state.src === "demo" ? 2000 : SCREEN ? 4000 : 10000);
 }
 
 /* ---------- demo judges simulation ---------- */
