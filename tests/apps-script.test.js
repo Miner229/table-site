@@ -83,13 +83,13 @@ test("a judge writes only the column of the apparatus in their link", () => {
   assert.equal(tabs["Пятница 1"][3][7], "8");
 });
 
-test("wrong key, wrong gender, header row, renamed row and scores over 10 are rejected", () => {
+test("wrong key, wrong gender, header row, renamed row and scores over 16 are rejected", () => {
   const { tabs, key, post } = setup();
   assert.match(post({ ...IVANOV, key: "12345678", value: "9" }).error, /Неверный код/);
   assert.match(post({ ...IVANOV, key: key["F:beam"], value: "9" }).error, /не для вашего снаряда/);
   assert.match(post({ tab: "Пятница 1", row: 1, name: "ФИО", key: key["M:floor"], value: "9" }).error, /Неверная строка/);
   assert.match(post({ ...IVANOV, name: "Сидоров", key: key["M:floor"], value: "9" }).error, /Список изменился/);
-  assert.match(post({ ...IVANOV, key: key["M:floor"], value: "10.5" }).error, /от 0 до 10/);
+  assert.match(post({ ...IVANOV, key: key["M:floor"], value: "16.5" }).error, /от 0 до 16/);
   assert.match(post({ ...IVANOV, key: key["M:floor"], value: "abc" }).error, /формат/);
   assert.match(post({ tab: "Журнал", row: 2, name: "x", key: key["M:floor"], value: "9" }).error, /Поток не найден/);
   assert.ok(tabs["Пятница 1"].slice(1).every(r => r.slice(5).every(c => c === "")));
@@ -310,7 +310,7 @@ test("secretary: wrong or missing code refused and slowed down; judge and organi
 test("secretary: same checks as judges — format, range, row, name, apparatus of the stream, stale value", () => {
   const { tabs, fix, post, key } = setup();
   const F = { ...IVANOV, app: "floor" };
-  assert.match(fix({ ...F, value: "11" }).error, /от 0 до 10/);
+  assert.match(fix({ ...F, value: "17" }).error, /от 0 до 16/);
   assert.match(fix({ ...F, value: "abc" }).error, /формат/);
   assert.match(fix({ ...F, row: 1, name: "ФИО", value: "9" }).error, /Неверная строка/);
   assert.match(fix({ ...F, name: "Кто-то Другой", value: "9" }).error, /Список изменился/);
@@ -352,7 +352,7 @@ test("every rejected request leaves the sheet and the log untouched", () => {
   const k = key["M:floor"];
   const bad = [
     [{ ...IVANOV, key: k, value: "abc" }, /формат/],
-    [{ ...IVANOV, key: k, value: "10.5" }, /от 0 до 10/],
+    [{ ...IVANOV, key: k, value: "16.5" }, /от 0 до 16/],
     [{ ...IVANOV, key: k, value: "-1" }, /формат/],
     [{ ...IVANOV, key: k, value: "1e1" }, /формат/],
     [{ ...IVANOV, key: k, value: "9.1234" }, /формат/],

@@ -13,7 +13,7 @@
 "use strict";
 
 const CONFIG = {
-  MAX_SCORE: 10,
+  MAX_SCORE: 16,
   SHEET_ID: "1NCLssbli5uUVMNLn88zw8n2RdzHTaZrumR9AP0Zvd9w",
   SETTINGS_TAB: "Настройки",
   // Apps Script web-app URL (judges write scores through it). Can also come from ?api=... in the judge link.

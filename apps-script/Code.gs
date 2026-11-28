@@ -14,7 +14,7 @@
 var JUDGE_PAGE = "https://miner229.github.io/table-site/judge.html";
 var SETTINGS_TAB = "Настройки";
 var LOG_TAB = "Журнал";
-var MAX_SCORE = 10;
+var MAX_SCORE = 16;
 
 var APPS = {
   floor:  "Вольные упражнения", pommel: "Конь-махи", rings: "Кольца", vault: "Опорный прыжок",
