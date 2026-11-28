@@ -195,7 +195,9 @@ async function writeScore(g, value, expected) {
     A.demoSave(d);
     return;
   }
-  await A.scriptPost({ action: "score", key: KEY, tab: current.tab, row: g.row, name: g.name, value, expected });
+  // zero: true — a real 0 (older pages sent 0 for «н/я», so the server reads a bare 0 as «н/я»)
+  await A.scriptPost({ action: "score", key: KEY, tab: current.tab, row: g.row, name: g.name, value, expected,
+    zero: A.parseScore(value) === 0 });
 }
 
 /* ---------- load ---------- */
@@ -346,9 +348,10 @@ function render() {
 }
 
 function shown(raw) {
-  const n = A.parseScore(raw);
   if (raw === "") return "";
-  return n === 0 ? "н/я" : (n == null ? raw : A.fmtScore(n));
+  if (A.isDns(raw)) return "н/я";
+  const n = A.parseScore(raw);
+  return n == null ? raw : A.fmtScore(n);
 }
 
 function rowHtml(g, n) {
@@ -370,7 +373,7 @@ function rowHtml(g, n) {
 function validate(text) {
   const t = String(text).trim();
   if (t === "") return { value: "" };
-  if (/^н\/?я$/i.test(t)) return { value: "0" };
+  if (A.isDns(t)) return { value: "н/я" };
   if (!/^\d{1,2}([.,]\d{1,3})?$/.test(t)) return { error: "Формат: 12,350 (до 3 знаков после запятой)" };
   const n = A.parseScore(t);
   if (n < 0 || n > A.CONFIG.MAX_SCORE) return { error: "Оценка должна быть от 0 до " + A.CONFIG.MAX_SCORE };
@@ -428,7 +431,7 @@ function setSaved(el, saved) {
 // keep both the row we edited and the latest loaded copy of the stream in sync
 function setLocal(g, raw) {
   saveSeq++;   // any load still running now may hold an older copy of this cell
-  const val = { raw, num: A.parseScore(raw) };
+  const val = A.scoreOf(raw);
   g.scores[me.app] = val;
   const fresh = stream && stream.gymnasts.find(x => x.row === g.row && x.name === g.name);
   if (fresh) fresh.scores[me.app] = val;
@@ -437,7 +440,7 @@ function setLocal(g, raw) {
 document.addEventListener("click", e => {
   const el = e.target.closest(".g"); if (!el) return;
   if (e.target.closest("button.save")) submit(el);
-  if (e.target.closest("button.dns")) { el.querySelector("input").value = "н/я"; submit(el, "0"); }
+  if (e.target.closest("button.dns")) { el.querySelector("input").value = "н/я"; submit(el, "н/я"); }
 });
 document.addEventListener("input", e => { if (e.target.matches(".g input")) e.target.dataset.dirty = "1"; });
 document.addEventListener("keydown", async e => {

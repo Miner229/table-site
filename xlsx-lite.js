@@ -32,7 +32,7 @@ const colName = n => { let s = ""; n++; while (n) { const m = (n - 1) % 26; s = 
 // styles: 0 default, 1 title, 2 dates, 3 header, 4 group, 5 place, 6 text, 7 score, 8 sum
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<numFmts count="1"><numFmt numFmtId="164" formatCode="0.000"/></numFmts>
+<numFmts count="1"><numFmt numFmtId="164" formatCode="0.000;-0.000;0"/></numFmts>
 <fonts count="5"><font><sz val="12"/><name val="Times New Roman"/></font><font><b/><sz val="19"/><name val="Times New Roman"/></font><font><b/><sz val="17"/><name val="Times New Roman"/></font><font><b/><sz val="12"/><name val="Times New Roman"/></font><font><sz val="12"/><name val="Times New Roman"/></font></fonts>
 <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
 <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/><diagonal/></border></borders>

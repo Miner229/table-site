@@ -120,8 +120,21 @@ function parseScore(raw) {
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
+// a zero is shown as «0» (no decimals); «н/я» (did not start) is a separate mark, see isDns
 function fmtScore(n) {
-  return n == null ? "" : n.toFixed(3).replace(".", ",");
+  if (n == null) return "";
+  if (Math.abs(n) < 5e-4) return "0";
+  return n.toFixed(3).replace(".", ",");
+}
+// «н/я» — the gymnast did not start. In the sheet it is a 0 shown as «н/я» (number format).
+function isDns(raw) {
+  return /^н\s*\/?\s*я$/i.test(String(raw == null ? "" : raw).trim());
+}
+// one score cell: raw text as the sheet shows it; num counts in sums («н/я» = 0); dns = did not start
+function scoreOf(raw) {
+  raw = raw == null ? "" : String(raw);
+  const dns = isDns(raw);
+  return { raw, num: dns ? 0 : parseScore(raw), dns };
 }
 function parseTimes(s) {
   return (String(s || "").match(/\d{1,2}[:.]\d{2}/g) || []).map(t => {
@@ -275,7 +288,7 @@ function parseStream(values, gender, rowBase) {
     const scores = {};
     Object.keys(appCols).forEach(a => {
       const raw = cells[appCols[a]] || "";
-      scores[a] = { raw, num: parseScore(raw) };
+      scores[a] = scoreOf(raw);
     });
     gymnasts.push({
       idx: gymnasts.length,
@@ -373,12 +386,13 @@ function streamWarnings(stream) {
 }
 
 /* ---------- ranking ---------- */
-// status: "scored" | "dns" (0 = не выступал) | "wait"
+// status: "scored" (a 0 is a score too) | "dns" («н/я» = не явился) | "wait"
 function rankList(gyms, app) {
   const items = gyms.map(g => {
     const s = g.scores[app] || { raw: "", num: null };
     let status = "wait";
-    if (s.num != null && s.num > 0) status = "scored";
+    if (s.dns) status = "dns";
+    else if (s.num != null) status = "scored";
     else if (s.raw !== "") status = "dns";
     return { g, score: s.num, status };
   });
@@ -552,7 +566,7 @@ async function loadStream(src, st) {
 
 global.ArtVin = {
   CONFIG, APPARATUS, ORDER, ROT_MODES,
-  norm, esc, parseScore, fmtScore, parseCSV, parseSettings, parseStream, parseGender, apparatusFromText,
+  norm, esc, parseScore, fmtScore, isDns, scoreOf, parseCSV, parseSettings, parseStream, parseGender, apparatusFromText,
   appAtRotation, autoRotation, timeRotation, currentRotation, groupsAt, rankList, hasScore, isFinished, rotationProgress,
   streamWarnings, isApparatusLabel, looksLikePerson, parseTimes,
   scriptGet, scriptPost, scriptUrl, sameScore,

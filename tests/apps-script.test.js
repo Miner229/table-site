@@ -28,10 +28,22 @@ function setup() {
   const knobs = { lockBusy: false, logFails: false };
   const calls = { read: {}, cell: 0, write: 0, append: 0, flush: 0 };
   const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
+  // number formats per cell ("r,c" → format); a 0 with the format "н/я" displays as «н/я», like Sheets
+  const formats = {};
+  const fmtKey = (name, r, c) => name + "|" + r + "," + c;
+  const shownCell = (name, r, c) => {
+    const v = (tabs[name][r - 1] || [])[c - 1] ?? "";
+    return formats[fmtKey(name, r, c)] === '"н/я"' && v !== "" && Number(v) === 0 ? "н/я" : String(v);
+  };
   const sheet = name => ({
-    getDataRange: () => ({ getDisplayValues: () => { bump(calls.read, name); return tabs[name].map(r => r.map(String)); } }),
+    getDataRange: () => ({ getDisplayValues: () => { bump(calls.read, name); return tabs[name].map((row, i) => row.map((v, j) => shownCell(name, i + 1, j + 1))); } }),
+    getRangeList: a1s => ({ setNumberFormat: f => { calls.write++; a1s.forEach(a => {
+      const m = /^([A-Z])(\d+)$/.exec(a); formats[fmtKey(name, +m[2], m[1].charCodeAt(0) - 64)] = f; }); } }),
     getRange: (r, c, nr = 1, nc = 1) => ({
-      getDisplayValue: () => { calls.cell++; return tabs[name][r - 1][c - 1] ?? ""; },
+      getDisplayValue: () => { calls.cell++; return shownCell(name, r, c); },
+      getNumberFormat: () => formats[fmtKey(name, r, c)] || "0.###############",
+      getNumberFormats: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => formats[fmtKey(name, r + i, c + j)] || "0.###############")),
+      setNumberFormat: f => { formats[fmtKey(name, r, c)] = f; },
       setValue: v => { calls.write++; while (tabs[name].length < r) tabs[name].push([]); tabs[name][r - 1][c - 1] = String(v); },
       clearContent: () => {
         calls.write++;
@@ -57,6 +69,7 @@ function setup() {
       };
     } },
     Utilities: { sleep: ms => { slept += ms; } },
+    Logger: { log: () => {} },
     ContentService: { createTextOutput: s => ({ setMimeType: () => JSON.parse(s) }), MimeType: { JSON: 1 } },
   };
   tabs["Журнал"] = [];
@@ -69,7 +82,7 @@ function setup() {
   const fix = (b, secret) => JSON.parse(JSON.stringify(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ action: "fix", secret: secret === undefined ? ctx.secretaryKey_() : secret }, b)) } })));
   const get = p => JSON.parse(JSON.stringify(ctx.doGet({ parameter: p })));
   const resetCalls = () => { calls.read = {}; calls.cell = calls.write = calls.append = calls.flush = 0; };
-  return { ctx, tabs, key, keys, post, fix, get, log, knobs, calls, resetCalls, lock: () => ({ lockDepth, maxLockDepth }), slept: () => slept };
+  return { ctx, tabs, formats, key, keys, post, fix, get, log, knobs, calls, resetCalls, lock: () => ({ lockDepth, maxLockDepth }), slept: () => slept };
 }
 const IVANOV = { tab: "Пятница 1", row: 3, name: "Иванов Иван" };
 
@@ -574,4 +587,58 @@ test("start clear: costs nothing extra on normal requests (one properties read, 
   s.get({ action: "state", tab: "Пятница 1" });
   assert.deepEqual(s.calls.read, { "Настройки": 1, "Пятница 1": 1 });
   assert.equal(s.calls.write, 0);
+});
+
+/* ---------- 0 vs «н/я» (28.11) ---------- */
+test("«н/я» is stored as 0 with the format «н/я»; a real zero (zero: true) is a plain 0", () => {
+  const { tabs, formats, key, post, get } = setup();
+  const PETROV = { tab: "Пятница 1", row: 4, name: "Петров Пётр" };
+  assert.equal(post({ ...IVANOV, key: key["M:floor"], value: "н/я", expected: "" }).ok, true);
+  assert.equal(tabs["Пятница 1"][2][5], "0");                                   // value 0: the sum is unchanged
+  assert.equal(formats["Пятница 1|3,6"], '"н/я"');
+  assert.equal(post({ ...PETROV, key: key["M:floor"], value: "0.000", zero: true, expected: "" }).ok, true);
+  assert.equal(tabs["Пятница 1"][3][5], "0");
+  assert.equal(formats["Пятница 1|4,6"], undefined);                             // plain zero
+  const v = get({ action: "tab", tab: "Пятница 1" }).values;
+  assert.equal(v[2][5], "н/я");
+  assert.equal(v[3][5], "0");
+  // the same «н/я» again (lost answer) is no change; a different value is locked for the judge
+  assert.equal(post({ ...IVANOV, key: key["M:floor"], value: "н/я", expected: "" }).unchanged, true);
+  assert.equal(post({ ...PETROV, key: key["M:floor"], value: "н/я", expected: "" }).locked, true);
+});
+
+test("pages from before the change: a bare 0 still means «н/я»", () => {
+  const { tabs, formats, key, post, log } = setup();
+  assert.equal(post({ ...IVANOV, key: key["M:rings"], value: "0", expected: "" }).ok, true);
+  assert.equal(tabs["Пятница 1"][2][7], "0");
+  assert.equal(formats["Пятница 1|3,8"], '"н/я"');
+  assert.equal(log[log.length - 1][6], "н/я");
+});
+
+test("secretary: «н/я» → score and «н/я» → clear → judge score show the number, not «н/я»", () => {
+  const { tabs, formats, key, post, fix, get } = setup();
+  assert.equal(post({ ...IVANOV, key: key["M:rings"], value: "н/я", expected: "" }).ok, true);
+  assert.equal(fix({ ...IVANOV, app: "rings", value: "9.5", expected: "н/я" }).ok, true);
+  assert.equal(tabs["Пятница 1"][2][7], "9.5");
+  assert.notEqual(formats["Пятница 1|3,8"], '"н/я"');
+  assert.equal(fix({ ...IVANOV, app: "rings", value: "н/я", expected: "9.5" }).ok, true);
+  assert.equal(get({ action: "tab", tab: "Пятница 1" }).values[2][7], "н/я");
+  assert.equal(fix({ ...IVANOV, app: "rings", value: "", expected: "н/я" }).ok, true);
+  assert.equal(post({ ...IVANOV, key: key["M:rings"], value: "8.9", expected: "" }).ok, true);
+  assert.equal(get({ action: "tab", tab: "Пятница 1" }).values[2][7], "8.9");
+  // the secretary can also turn «н/я» into a real 0
+  assert.equal(fix({ ...IVANOV, app: "rings", value: "0", zero: true, expected: "8.9" }).ok, true);
+  assert.equal(get({ action: "tab", tab: "Пятница 1" }).values[2][7], "0");
+});
+
+test("markOldZerosAsDns: only zeros in apparatus columns get the «н/я» format, values stay", () => {
+  const { ctx, tabs, formats } = setup();
+  const t = tabs["Пятница 1"];
+  t[2][5] = "0"; t[2][6] = "9.1"; t[3][9] = "0"; t[2][11] = "0"; t[3][0] = "0";   // Сумма and № are not scores
+  const before = JSON.stringify(tabs);
+  const out = ctx.markOldZerosAsDns();
+  assert.deepEqual(Object.keys(formats).sort(), ["Пятница 1|3,6", "Пятница 1|4,10"]);
+  assert.equal(out.length, 1);
+  const after = JSON.parse(before); after["Журнал"] = tabs["Журнал"];
+  assert.deepEqual(tabs, after);                                                // no value changed
 });

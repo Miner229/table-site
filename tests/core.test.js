@@ -150,10 +150,10 @@ test("auto rotation: advances only when every apparatus has finished; then the n
   assert.ok(A.groupsAt(s, 2).rings.every(g => g.scores.pommel.num === 9));
 });
 
-test("auto rotation: «н/я» (0) counts as done; full stream ends finished at rotation 6", () => {
+test("auto rotation: «н/я» counts as done; full stream ends finished at rotation 6", () => {
   const v = tab(M_HEAD, SIX.map(start => ({ start, n: 10 })));
   let s = A.parseStream(v, "M", 1);
-  for (let r = 1; r <= 6; r++) { fillRotation(v, s, r, r === 3 ? "0" : "8.5"); s = A.parseStream(v, "M", 1); }
+  for (let r = 1; r <= 6; r++) { fillRotation(v, s, r, r === 3 ? "н/я" : "8.5"); s = A.parseStream(v, "M", 1); }
   const info = A.currentRotation(s, { rotation: 1, mode: "auto", times: [] });
   assert.equal(info.rotation, 6);
   assert.equal(info.finished, true);
@@ -194,7 +194,7 @@ test("warnings: gymnasts without a start apparatus are reported, not silently dr
 test("ranking: highest first, ties share the place, waiting and «н/я» at the bottom", () => {
   const v = tab(M_HEAD, [{ start: "Вольные", n: 5 }]);
   const col = 5;
-  v[1][col] = "8.900"; v[2][col] = "9.300"; v[3][col] = "9.300"; v[4][col] = "0"; /* v[5] waiting */
+  v[1][col] = "8.900"; v[2][col] = "9.300"; v[3][col] = "9.300"; v[4][col] = "н/я"; /* v[5] waiting */
   const s = A.parseStream(v, "M", 1);
   const r = A.rankList(s.gymnasts, "floor");
   deq(r.map(i => [i.g.name.split(" ")[0], i.status, i.place]), [
@@ -410,4 +410,20 @@ test("loadState: older deployed script → falls back, and stops asking after th
   assert.equal(await C.loadState("script", "Пятница 1"), null);
   deq(srv.asked, ["state"], "one probe only — no extra request on every poll");
   assert.equal((await C.loadSettings("script"))[0].tab, "Пятница 1");
+});
+
+test("0 is a score shown as «0»; «н/я» is only the mark «н/я» (28.11)", () => {
+  assert.equal(A.fmtScore(0), "0");
+  assert.equal(A.fmtScore(9.25), "9,250");
+  assert.equal(A.fmtScore(null), "");
+  assert.ok(A.isDns("н/я") && A.isDns("Н/Я") && A.isDns("ня") && !A.isDns("0") && !A.isDns(""));
+  deq(A.scoreOf("н/я"), { raw: "н/я", num: 0, dns: true });
+  deq(A.scoreOf("0"), { raw: "0", num: 0, dns: false });
+  assert.ok(!A.sameScore("н/я", "0") && A.sameScore("н/я", "н/я") && A.sameScore("0", "0.000"));
+  const v = tab(M_HEAD, [{ start: "Вольные", n: 3 }]);
+  v[1][5] = "0"; v[2][5] = "н/я"; v[3][5] = "7,5";
+  const r = A.rankList(A.parseStream(v, "M", 1).gymnasts, "floor");
+  deq(r.map(i => [i.g.name.split(" ")[0], i.status, i.place]), [
+    ["Фамилия3", "scored", 1], ["Фамилия1", "scored", 2], ["Фамилия2", "dns", undefined],
+  ]);
 });

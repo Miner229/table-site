@@ -895,7 +895,7 @@ function simulate() {
   s.apps.forEach(a => groups[a].forEach(g => { if (!A.hasScore(g, a)) waiting.push([g, a]); }));
   if (!waiting.length) return;
   const [g, a] = waiting[Math.floor(Math.random() * waiting.length)];
-  d.tabs[current.tab][g.row - 1][s.appCols[a]] = Math.random() < 0.04 ? "0" : A.randomScore();
+  d.tabs[current.tab][g.row - 1][s.appCols[a]] = Math.random() < 0.04 ? "н/я" : A.randomScore();
   A.demoSave(d);
   refresh();
 }

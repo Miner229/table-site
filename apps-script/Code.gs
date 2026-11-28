@@ -289,13 +289,18 @@ function doPost(e) {
 // One write path for judges and the secretary — same checks, only the overwrite rule differs.
 // b: { tab, row, name, value, expected } · who: "judge" | "secretary"
 function writeScore_(lock, b, gender, app, who) {
-  // value: "" (удалить) or number 0..MAX_SCORE with up to 3 decimals; 0 = «не выступал»
+  // value: "" (удалить), «н/я» (не явился) or number 0..MAX_SCORE with up to 3 decimals.
+  // «н/я» is stored as the number 0 with the number format "н/я" (score columns stay numeric, the sum is
+  // unchanged, the sheet and the site show «н/я»). A real 0 is a plain 0. Pages from before 28.11 sent
+  // 0 for «н/я»; new pages mark a real zero with zero: true — so a bare 0 still means «н/я».
   var raw = String(b.value == null ? "" : b.value).trim().replace(",", ".");
-  var value = "";
-  if (raw !== "") {
+  var value = "", dns = false;
+  if (isDns_(raw)) { value = 0; dns = true; }
+  else if (raw !== "") {
     if (!/^\d{1,2}(\.\d{1,3})?$/.test(raw)) throw new Error("Неверный формат оценки");
     value = Number(raw);
     if (value < 0 || value > MAX_SCORE) throw new Error("Оценка должна быть от 0 до " + MAX_SCORE);
+    if (value === 0 && !(b.zero === true || b.zero === 1 || b.zero === "1")) dns = true;
   }
   if (who === "judge" && value === "") throw new Error("Удалить оценку может только секретарь");
 
@@ -320,7 +325,8 @@ function writeScore_(lock, b, gender, app, who) {
   var cell = sh.getRange(row, col + 1);
   var old = cell.getDisplayValue();
   // The same value again (e.g. the answer to the first try was lost on a bad network): nothing to do.
-  if (sameScore_(old, value === "" ? "" : String(value))) return { ok: true, unchanged: true };
+  var shownNew = value === "" ? "" : dns ? "н/я" : String(value);
+  if (sameScore_(old, shownNew)) return { ok: true, unchanged: true };
   // Judges: once a score is in the cell, only the secretary can change it.
   if (who === "judge" && old !== "") {
     return { ok: false, locked: true, current: old, error: "Оценка уже выставлена: " + old + ". Исправить может только секретарь" };
@@ -330,11 +336,50 @@ function writeScore_(lock, b, gender, app, who) {
   if (b.expected !== undefined && !sameScore_(old, b.expected)) {
     return { ok: false, conflict: true, current: old, error: "Оценку уже изменили на другом устройстве: " + (old || "пусто") };
   }
-  if (value === "") cell.clearContent(); else cell.setValue(value);
+  if (value === "") cell.clearContent();
+  else {
+    cell.setValue(value);
+    if (dns) cell.setNumberFormat(DNS_FORMAT);
+    // a cell that once held «н/я» keeps that format after a clear: give it back the column's number format
+    else if (cell.getNumberFormat() === DNS_FORMAT) cell.setNumberFormat(plainFormat_(sh, hi, col, values.length));
+  }
   SpreadsheetApp.flush();
   var label = APPS[app] + (gender === "F" ? " (Ж)" : " (М)");
-  safeLog_([new Date(), who === "secretary" ? "Секретарь · " + label : label, b.tab, row, b.name, old, value === "" ? "удалено" : value]);
+  safeLog_([new Date(), who === "secretary" ? "Секретарь · " + label : label, b.tab, row, b.name, old, value === "" ? "удалено" : dns ? "н/я" : value]);
   return { ok: true };
+}
+
+var DNS_FORMAT = '"н/я"';
+function isDns_(s) { return /^н\s*\/?\s*я$/.test(norm_(s)); }
+// the number format of the other score cells in the column (not «н/я»)
+function plainFormat_(sh, hi, col, rows) {
+  var n = Math.max(1, rows - hi - 1);
+  var f = sh.getRange(hi + 2, col + 1, n, 1).getNumberFormats().map(function (r) { return r[0]; })
+    .filter(function (x) { return x && x !== DNS_FORMAT && x !== "@"; });
+  return f.length ? f[0] : "0.###############";
+}
+// One-off, run once from the editor on 28.11: zeros entered before this version meant «н/я».
+// Only the number format of those cells changes («н/я»); the values (0) stay as they are.
+function markOldZerosAsDns() {
+  var all = streams_(), out = [];
+  Object.keys(all).forEach(function (tab) {
+    var sh = SpreadsheetApp.getActive().getSheetByName(tab);
+    if (!sh) return;
+    var values = sh.getDataRange().getDisplayValues();
+    var hi = headerIndex_(values), head = values[hi];
+    var nameCol = head.findIndex(function (c) { return /^фио/.test(norm_(c)); });
+    var startCol = head.findIndex(function (c) { return /старт/.test(norm_(c)); });
+    var cells = [];
+    head.forEach(function (h, c) {
+      if (c === nameCol || c === startCol || !appFromText_(h, all[tab].gender)) return;
+      for (var r = hi + 1; r < values.length; r++) if (String(values[r][c]).trim() === "0") cells.push(String.fromCharCode(65 + c) + (r + 1));
+    });
+    if (cells.length) { sh.getRangeList(cells).setNumberFormat(DNS_FORMAT); out.push(tab + ": " + cells.join(", ")); }
+  });
+  SpreadsheetApp.flush();
+  safeLog_([new Date(), "Секретарь", "", "", "Старые 0 = н/я (только формат)", out.join(" · "), "н/я"]);
+  Logger.log(out.join("\n") || "нулей нет");
+  return out;
 }
 
 function sameScore_(a, b) {
