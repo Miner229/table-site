@@ -33,7 +33,7 @@ function setup() {
   const fmtKey = (name, r, c) => name + "|" + r + "," + c;
   const shownCell = (name, r, c) => {
     const v = (tabs[name][r - 1] || [])[c - 1] ?? "";
-    return formats[fmtKey(name, r, c)] === '"н/я"' && v !== "" && Number(v) === 0 ? "н/я" : String(v);
+    return /"н\/я"/.test(formats[fmtKey(name, r, c)] || "") && v !== "" && Number(v) === 0 ? "н/я" : String(v);
   };
   const sheet = name => ({
     getDataRange: () => ({ getDisplayValues: () => { bump(calls.read, name); return tabs[name].map((row, i) => row.map((v, j) => shownCell(name, i + 1, j + 1))); } }),
@@ -591,11 +591,11 @@ test("start clear: costs nothing extra on normal requests (one properties read, 
 
 /* ---------- 0 vs «н/я» (28.11) ---------- */
 test("«н/я» is stored as 0 with the format «н/я»; a real zero (zero: true) is a plain 0", () => {
-  const { tabs, formats, key, post, get } = setup();
+  const { ctx, tabs, formats, key, post, get } = setup();
   const PETROV = { tab: "Пятница 1", row: 4, name: "Петров Пётр" };
   assert.equal(post({ ...IVANOV, key: key["M:floor"], value: "н/я", expected: "" }).ok, true);
   assert.equal(tabs["Пятница 1"][2][5], "0");                                   // value 0: the sum is unchanged
-  assert.equal(formats["Пятница 1|3,6"], '"н/я"');
+  assert.equal(formats["Пятница 1|3,6"], ctx.DNS_FORMAT);
   assert.equal(post({ ...PETROV, key: key["M:floor"], value: "0.000", zero: true, expected: "" }).ok, true);
   assert.equal(tabs["Пятница 1"][3][5], "0");
   assert.equal(formats["Пятница 1|4,6"], undefined);                             // plain zero
@@ -608,19 +608,19 @@ test("«н/я» is stored as 0 with the format «н/я»; a real zero (zero: tru
 });
 
 test("pages from before the change: a bare 0 still means «н/я»", () => {
-  const { tabs, formats, key, post, log } = setup();
+  const { ctx, tabs, formats, key, post, log } = setup();
   assert.equal(post({ ...IVANOV, key: key["M:rings"], value: "0", expected: "" }).ok, true);
   assert.equal(tabs["Пятница 1"][2][7], "0");
-  assert.equal(formats["Пятница 1|3,8"], '"н/я"');
+  assert.equal(formats["Пятница 1|3,8"], ctx.DNS_FORMAT);
   assert.equal(log[log.length - 1][6], "н/я");
 });
 
 test("secretary: «н/я» → score and «н/я» → clear → judge score show the number, not «н/я»", () => {
-  const { tabs, formats, key, post, fix, get } = setup();
+  const { ctx, tabs, formats, key, post, fix, get } = setup();
   assert.equal(post({ ...IVANOV, key: key["M:rings"], value: "н/я", expected: "" }).ok, true);
   assert.equal(fix({ ...IVANOV, app: "rings", value: "9.5", expected: "н/я" }).ok, true);
   assert.equal(tabs["Пятница 1"][2][7], "9.5");
-  assert.notEqual(formats["Пятница 1|3,8"], '"н/я"');
+  assert.notEqual(formats["Пятница 1|3,8"], ctx.DNS_FORMAT);
   assert.equal(fix({ ...IVANOV, app: "rings", value: "н/я", expected: "9.5" }).ok, true);
   assert.equal(get({ action: "tab", tab: "Пятница 1" }).values[2][7], "н/я");
   assert.equal(fix({ ...IVANOV, app: "rings", value: "", expected: "н/я" }).ok, true);
@@ -641,4 +641,12 @@ test("markOldZerosAsDns: only zeros in apparatus columns get the «н/я» forma
   assert.equal(out.length, 1);
   const after = JSON.parse(before); after["Журнал"] = tabs["Журнал"];
   assert.deepEqual(tabs, after);                                                // no value changed
+});
+
+test("markOldZerosAsDns can run again: cells already shown as «н/я» get the current format", () => {
+  const { ctx, tabs, formats } = setup();
+  tabs["Пятница 1"][2][5] = "0"; formats["Пятница 1|3,6"] = '"н/я"';   // the first format used on 28.11
+  ctx.markOldZerosAsDns();
+  assert.equal(formats["Пятница 1|3,6"], ctx.DNS_FORMAT);
+  assert.equal(tabs["Пятница 1"][2][5], "0");
 });

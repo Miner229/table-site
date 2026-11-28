@@ -349,7 +349,8 @@ function writeScore_(lock, b, gender, app, who) {
   return { ok: true };
 }
 
-var DNS_FORMAT = '"н/я"';
+// only a 0 is shown as «н/я»; any other number shows normally (a «Сумма» formula may inherit this format)
+var DNS_FORMAT = '0.000;-0.000;"н/я"';
 function isDns_(s) { return /^н\s*\/?\s*я$/.test(norm_(s)); }
 // the number format of the other score cells in the column (not «н/я»)
 function plainFormat_(sh, hi, col, rows) {
@@ -372,7 +373,7 @@ function markOldZerosAsDns() {
     var cells = [];
     head.forEach(function (h, c) {
       if (c === nameCol || c === startCol || !appFromText_(h, all[tab].gender)) return;
-      for (var r = hi + 1; r < values.length; r++) if (String(values[r][c]).trim() === "0") cells.push(String.fromCharCode(65 + c) + (r + 1));
+      for (var r = hi + 1; r < values.length; r++) if (String(values[r][c]).trim() === "0" || isDns_(values[r][c])) cells.push(String.fromCharCode(65 + c) + (r + 1));
     });
     if (cells.length) { sh.getRangeList(cells).setNumberFormat(DNS_FORMAT); out.push(tab + ": " + cells.join(", ")); }
   });
