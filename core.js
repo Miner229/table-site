@@ -246,6 +246,7 @@ function parseStream(values, gender, rowBase) {
   const nameCol = hn.findIndex(c => /^фио/.test(c));
   const yearCol = hn.findIndex(c => /год/.test(c));
   const clubCol = hn.findIndex(c => /клуб|регион|команд|город/.test(c));
+  const rankCol = hn.findIndex(c => /разряд/.test(c));
   const startCol = hn.findIndex(c => /старт/.test(c));
   const appCols = {};
   h.forEach((c, i) => {
@@ -282,6 +283,7 @@ function parseStream(values, gender, rowBase) {
       name,
       year: yearCol >= 0 ? cells[yearCol] : "",
       club: clubCol >= 0 ? cells[clubCol] : "",
+      rank: rankCol >= 0 ? cells[rankCol] : "",
       start,
       scores,
     });
